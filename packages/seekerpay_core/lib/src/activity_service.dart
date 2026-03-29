@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'rpc_client.dart';
 import 'wallet_state.dart';
 import 'skr_token.dart';
@@ -7,10 +10,18 @@ import 'transaction_record.dart';
 import 'transaction_parser.dart';
 import 'balance_providers.dart';
 
+/// Immutable state for the transaction activity feed.
 class ActivityState {
+  /// The list of parsed transaction records for the connected wallet.
   final List<TransactionRecord> transactions;
+
+  /// `true` while transaction data is being fetched.
   final bool isLoading;
+
+  /// Error message from the last failed load, if any.
   final String? error;
+
+  /// Active filter value (e.g. `'all'`, `'send'`, `'receive'`).
   final String filter;
 
   ActivityState({
@@ -20,6 +31,7 @@ class ActivityState {
     this.filter = 'all',
   });
 
+  /// Returns a copy of this state with the provided fields replaced.
   ActivityState copyWith({
     List<TransactionRecord>? transactions,
     bool? isLoading,
@@ -35,18 +47,48 @@ class ActivityState {
   }
 }
 
+/// Riverpod [StateNotifier] that loads and caches the wallet's transaction
+/// history from the Solana RPC.
+///
+/// Fetches up to 100 signatures for the wallet address and its SKR token
+/// accounts, filters to the last 7 days, and parses each transaction into
+/// [TransactionRecord] objects. Results are persisted to [SharedPreferences].
+/// Requires a Helius RPC endpoint; returns an error state otherwise.
 class ActivityService extends StateNotifier<ActivityState> {
   final RpcClient _rpc;
   final String _address;
   final Ref _ref;
+  static const String _cacheKeyPrefix = 'cached_activity_';
 
   ActivityService(this._rpc, this._address, this._ref) 
-    : super(ActivityState(transactions: []));
+    : super(ActivityState(transactions: [])) {
+    _loadFromCache();
+  }
 
+  Future<void> _loadFromCache() async {
+    if (_address.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('$_cacheKeyPrefix$_address');
+      if (cached != null) {
+        final List<dynamic> list = jsonDecode(cached);
+        final txs = list.map((e) => TransactionRecord.fromJson(e)).toList();
+        state = state.copyWith(transactions: txs);
+      }
+    } catch (e) {
+      print('Error loading activity from cache: $e');
+    }
+  }
+
+  /// Updates the active transaction type filter without triggering a reload.
   void setFilter(String filter) {
     state = state.copyWith(filter: filter);
   }
 
+  /// Fetches recent transactions from the RPC, parses them, and updates state.
+  ///
+  /// Only runs when a Helius API key is configured. Transactions older than
+  /// 7 days are excluded. Results are cached for offline access.
   Future<void> load() async {
     if (_address.isEmpty) return;
 
@@ -60,16 +102,16 @@ class ActivityService extends StateNotifier<ActivityState> {
       return;
     }
 
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: state.transactions.isEmpty, error: null);
     try {
       // Fetch signatures and filter to a rolling 7 days to reduce RPC load.
-      final signatures = await _rpc.getSignaturesForAddress(_address, limit: 200);
+      final signatures = await _rpc.getSignaturesForAddress(_address, limit: 100);
       
       // Also pull signatures from the user's SKR token accounts
       final skrTokenAccounts = await _rpc.getTokenAccountAddressesByOwner(_address, SKRToken.mintAddress);
       final List<TxSignature> tokenSignatures = [];
       for (final acct in skrTokenAccounts) {
-        final sigs = await _rpc.getSignaturesForAddress(acct, limit: 100);
+        final sigs = await _rpc.getSignaturesForAddress(acct, limit: 50);
         tokenSignatures.addAll(sigs);
       }
 
@@ -97,9 +139,11 @@ class ActivityService extends StateNotifier<ActivityState> {
         return;
       }
 
+      // To avoid flicker and long loading, only fetch what we don't have
+      // or fetch a small batch first.
       const batchSize = 10;
       
-      for (int i = 0; i < recentSigs.length; i += batchSize) {
+      for (int i = 0; i < math.min(recentSigs.length, 20); i += batchSize) {
         final end = (i + batchSize < recentSigs.length) ? i + batchSize : recentSigs.length;
         final batch = recentSigs.sublist(i, end);
         final sigStrings = batch.map((s) => s.signature).toList();
@@ -136,18 +180,21 @@ class ActivityService extends StateNotifier<ActivityState> {
             }
           }
         }
-        
-        await Future.delayed(const Duration(milliseconds: 10));
       }
       
       allTxs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       state = state.copyWith(isLoading: false, transactions: List.from(allTxs));
+
+      // Cache the result
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_cacheKeyPrefix$_address', jsonEncode(allTxs.map((e) => e.toJson()).toList()));
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 }
 
+/// Auto-disposing provider for [ActivityService] scoped to the current wallet address.
 final activityServiceProvider = StateNotifierProvider.autoDispose<ActivityService, ActivityState>((ref) {
   final rpc = ref.watch(rpcClientProvider);
   final wallet = ref.watch(walletStateProvider);

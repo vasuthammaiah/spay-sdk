@@ -1,39 +1,48 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
-import 'dart:convert' show base64Encode, jsonEncode, jsonDecode;
 
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:solana_mobile_client/solana_mobile_client.dart';
 import 'package:solana_web3/solana_web3.dart' as web3;
 
+/// Base exception thrown when a Mobile Wallet Adapter operation fails.
 class MwaException implements Exception {
+  /// Human-readable description of the failure.
   final String message;
   MwaException(this.message);
   @override
   String toString() => 'MwaException: $message';
 }
 
+/// Thrown when the user explicitly declines a wallet authorization or signing request.
 class MwaUserRejectedException extends MwaException {
   MwaUserRejectedException() : super('User rejected the request');
 }
 
+/// Thrown when the wallet app does not establish a connection within the timeout window.
 class MwaTimeoutException extends MwaException {
   MwaTimeoutException() : super('Wallet connection timed out');
 }
 
+/// Singleton client for interacting with a Solana wallet via the
+/// Mobile Wallet Adapter (MWA) protocol on Android.
+///
+/// Handles [LocalAssociationScenario] lifecycle, authorization caching, and
+/// transaction signing. All operations are serialised via [_busy] to prevent
+/// concurrent MWA sessions.
 class MwaClient {
   MwaClient._();
-  static final MwaClient instance = MwaClient._();
 
-  static const _channel = MethodChannel('seekerpay/wallet');
+  /// The shared [MwaClient] instance for the app.
+  static final MwaClient instance = MwaClient._();
 
   AuthorizationResult? _auth;
   bool _busy = false;
 
+  /// Whether the client currently holds a valid authorization token.
   bool get isAuthorized => _auth != null;
 
+  /// Clears the cached authorization and resets the busy flag.
   void reset() {
     _auth = null;
     _busy = false;
@@ -74,6 +83,11 @@ class MwaClient {
     }
   }
 
+  /// Authorizes with the wallet app and returns the connected wallet's Base58
+  /// public key, or `null` if authorization fails or the platform is not Android.
+  ///
+  /// Re-uses an existing auth token when available; falls back to a fresh
+  /// [authorize] call otherwise.
   Future<String?> connectWalletAndGetAddress({
     String identityName = 'SeekerPay',
     String cluster = 'mainnet-beta',
@@ -115,6 +129,10 @@ class MwaClient {
     }
   }
 
+  /// Presents [transactionBytes] to the wallet app for signing and returns the
+  /// signed transaction bytes, or `null` if signing is rejected or unavailable.
+  ///
+  /// Requires Android. A fresh authorization is performed if no token is cached.
   Future<Uint8List?> signTransaction({
     required Uint8List transactionBytes,
     String identityName = 'SeekerPay',

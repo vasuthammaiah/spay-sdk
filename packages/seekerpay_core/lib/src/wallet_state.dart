@@ -2,9 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'mwa_client.dart';
 
+/// Immutable snapshot of the wallet connection state.
 class WalletState {
+  /// The Base58 public key of the connected wallet, or `null` when disconnected.
   final String? address;
+
+  /// `true` while a connection attempt is in progress.
   final bool isConnecting;
+
+  /// A human-readable error message from the last failed operation, if any.
   final String? error;
 
   WalletState({
@@ -13,6 +19,7 @@ class WalletState {
     this.error,
   });
 
+  /// Returns a copy of this state with the provided fields replaced.
   WalletState copyWith({
     String? address,
     bool? isConnecting,
@@ -26,6 +33,10 @@ class WalletState {
   }
 }
 
+/// Riverpod [StateNotifier] that manages wallet connection lifecycle.
+///
+/// Persists the connected address to [SharedPreferences] so it survives
+/// app restarts. Uses [MwaClient] for the actual MWA handshake.
 class WalletStateNotifier extends StateNotifier<WalletState> {
   final MwaClient _mwaClient;
 
@@ -41,6 +52,10 @@ class WalletStateNotifier extends StateNotifier<WalletState> {
     }
   }
 
+  /// Initiates a wallet connection via MWA and persists the resulting address.
+  ///
+  /// Updates [WalletState.isConnecting] during the attempt and sets
+  /// [WalletState.error] on failure.
   Future<void> connect() async {
     state = state.copyWith(isConnecting: true);
     try {
@@ -57,6 +72,7 @@ class WalletStateNotifier extends StateNotifier<WalletState> {
     }
   }
 
+  /// Disconnects the wallet, clears the persisted address, and resets state.
   Future<void> disconnect() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('wallet_address');
@@ -65,6 +81,7 @@ class WalletStateNotifier extends StateNotifier<WalletState> {
   }
 }
 
+/// Global provider for [WalletStateNotifier] backed by the [MwaClient] singleton.
 final walletStateProvider = StateNotifierProvider<WalletStateNotifier, WalletState>((ref) {
   return WalletStateNotifier(MwaClient.instance);
 });

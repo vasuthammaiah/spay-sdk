@@ -2,37 +2,60 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
+/// Exception thrown when a Solana JSON-RPC call returns an error or the
+/// network request fails after all retries.
 class RpcException implements Exception {
+  /// Human-readable description of the RPC failure.
   final String message;
   RpcException(this.message);
   @override
   String toString() => 'RpcException: $message';
 }
 
+/// Result of a `simulateTransaction` RPC call.
 class SimulationResult {
+  /// `true` when the simulation returned a non-null error field.
   final bool hasError;
+
+  /// The raw error value returned by the RPC node, or `null` on success.
   final dynamic error;
   SimulationResult({required this.hasError, this.error});
 }
 
+/// Confirmation status for a single transaction signature.
 class TxStatus {
+  /// Confirmation level reported by the RPC node (e.g. `"finalized"`), or
+  /// `null` if the signature is not yet known.
   final String? status;
+
+  /// Number of confirmations, or `null` when not provided by the node.
   final int? confirmations;
   TxStatus({this.status, this.confirmations});
 }
 
+/// A transaction signature entry returned by `getSignaturesForAddress`.
 class TxSignature {
+  /// Base58-encoded transaction signature.
   final String signature;
+
+  /// Slot in which the transaction was confirmed, or `null` if unavailable.
   final int? slot;
+
+  /// Unix timestamp (seconds) of the block, or `null` if unavailable.
   final int? blockTime;
   TxSignature({required this.signature, this.slot, this.blockTime});
 }
 
+/// Low-level Solana JSON-RPC client.
+///
+/// Wraps common RPC methods with automatic retries (up to 3 attempts) and
+/// exponential back-off on HTTP 429 or transient network failures.
 class RpcClient {
+  /// The RPC endpoint URL used for all requests.
   final String rpcUrl;
   RpcClient({required this.rpcUrl});
 
-  Future<dynamic> _post(String method, [List<dynamic>? params]) async {
+  Future<dynamic> _post(String method, [dynamic params]) async {
     final response = await _postBatch([
       {
         'jsonrpc': '2.0',
@@ -89,11 +112,14 @@ class RpcClient {
     throw RpcException('RPC call failed after retries');
   }
 
+  /// Returns the SOL balance of [address] in lamports (confirmed commitment).
   Future<BigInt> getBalance(String address) async {
     final result = await _post('getBalance', [address, {'commitment': 'confirmed'}]);
     return BigInt.from(result['value']);
   }
 
+  /// Returns the token balance (in base units) for the first SPL token account
+  /// owned by [address] for the given [mint], or [BigInt.zero] if none exist.
   Future<BigInt> getTokenAccountsByOwner(String address, String mint) async {
     final result = await _post('getTokenAccountsByOwner', [
       address,
@@ -105,6 +131,8 @@ class RpcClient {
     return BigInt.parse(accounts[0]['account']['data']['parsed']['info']['tokenAmount']['amount']);
   }
 
+  /// Returns the public keys of all SPL token accounts owned by [address]
+  /// for the given [mint].
   Future<List<String>> getTokenAccountAddressesByOwner(String address, String mint) async {
     final result = await _post('getTokenAccountsByOwner', [
       address,
@@ -116,25 +144,31 @@ class RpcClient {
     return accounts.map((a) => a['pubkey'] as String).toList();
   }
 
+  /// Fetches the latest blockhash string from the cluster.
   Future<String> getLatestBlockhash() async {
     final result = await _post('getLatestBlockhash');
     return result['value']['blockhash'];
   }
 
+  /// Simulates [txBytes] (base64-encoded) and returns the simulation outcome.
   Future<SimulationResult> simulateTransaction(Uint8List txBytes) async {
     final result = await _post('simulateTransaction', [base64Encode(txBytes), {'encoding': 'base64'}]);
     return SimulationResult(hasError: result['value']['err'] != null, error: result['value']['err']);
   }
 
+  /// Submits a signed, base64-encoded transaction and returns its signature.
   Future<String> sendTransaction(Uint8List signedBytes) async {
     return await _post('sendTransaction', [base64Encode(signedBytes), {'encoding': 'base64'}]);
   }
 
+  /// Returns confirmation statuses for each signature in [sigs].
   Future<List<TxStatus>> getSignatureStatuses(List<String> sigs) async {
     final result = await _post('getSignatureStatuses', [sigs]);
     return (result['value'] as List).map((v) => v == null ? TxStatus() : TxStatus(status: v['confirmationStatus'], confirmations: v['confirmations'])).toList();
   }
 
+  /// Returns the most recent transaction signatures involving [address],
+  /// up to [limit] entries (default 20).
   Future<List<TxSignature>> getSignaturesForAddress(String address, {int limit = 20}) async {
     final result = await _post('getSignaturesForAddress', [address, {'limit': limit}]);
     return (result as List).map((item) => TxSignature(
@@ -144,6 +178,11 @@ class RpcClient {
     )).toList();
   }
 
+  /// Fetches the full transaction detail for [signature].
+  ///
+  /// Tries `jsonParsed` with `maxSupportedTransactionVersion: 1` first,
+  /// then falls back to `jsonParsed` without the version hint, and finally
+  /// to plain `json` encoding. Returns `null` if all attempts fail.
   Future<Map<String, dynamic>?> getTransaction(String signature) async {
     try {
       final result = await _post('getTransaction', [
@@ -184,6 +223,8 @@ class RpcClient {
     }
   }
 
+  /// Fetches transaction details for multiple [signatures] in a single batch
+  /// RPC request. Returns an empty list on failure.
   Future<List<dynamic>> getTransactions(List<String> signatures) async {
     if (signatures.isEmpty) return [];
     try {
@@ -208,6 +249,29 @@ class RpcClient {
     }
   }
 
+  /// Helius DAS: returns all digital assets (including Token-2022 NFTs/tokens)
+  /// owned by [address]. Params sent as a JSON object (DAS API convention).
+  ///
+  /// Set [showFungible] to `true` to include fungible Token-2022 assets such
+  /// as the Seeker Genesis Token and Chapter 2 Preorder Token.
+  Future<List<dynamic>> getAssetsByOwner(
+    String address, {
+    int limit = 1000,
+    bool showFungible = false,
+  }) async {
+    final result = await _post('getAssetsByOwner', {
+      'ownerAddress': address,
+      'displayOptions': {
+        'showFungible': showFungible,
+        'showNativeBalance': false,
+      },
+      'limit': limit,
+    });
+    return (result?['items'] as List?) ?? [];
+  }
+
+  /// Returns the parsed account info for [address], or `null` if the account
+  /// does not exist or the request fails.
   Future<Map<String, dynamic>?> getAccountInfo(String address) async {
     try {
       final result = await _post('getAccountInfo', [
@@ -220,14 +284,22 @@ class RpcClient {
     }
   }
 
-  Future<String?> snsResolveDomain(String domain) async {
+  /// Returns the raw account data bytes for [address], or null if the account
+  /// does not exist. Used for on-chain SNS record parsing.
+  Future<Uint8List?> getAccountData(String address) async {
     try {
-      print('RpcClient: Resolving SNS domain: $domain');
-      final result = await _post('sns_resolveDomain', [domain]);
-      print('RpcClient: SNS Resolution result for $domain: $result');
-      return result as String?;
-    } catch (e) {
-      print('RpcClient: SNS Resolution error for $domain: $e');
+      final result = await _post('getAccountInfo', [
+        address,
+        {'encoding': 'base64'},
+      ]);
+      final value = result['value'];
+      if (value == null) return null;
+      final data = value['data'];
+      if (data is List && data.length == 2 && data[1] == 'base64') {
+        return base64Decode(data[0] as String);
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }

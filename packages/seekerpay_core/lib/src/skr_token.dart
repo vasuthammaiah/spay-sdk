@@ -1,12 +1,22 @@
 import 'dart:typed_data';
 import 'package:solana_web3/solana_web3.dart' as web3;
 
+/// Constants for the SKR SPL token on Solana mainnet.
 class SKRToken {
+  /// The SPL mint address for the SKR token.
   static const String mintAddress = 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3';
+
+  /// Number of decimal places used by the SKR token (1 SKR = 10^6 base units).
   static const int decimals = 6;
 }
 
+/// Builds serialised SPL token transfer transactions.
 class SplTokenTransfer {
+  /// Builds a single-recipient SPL token transfer transaction.
+  ///
+  /// Delegates to [buildMulti] with one [MultiTransfer] entry.
+  /// Set [createRecipientATA] to `true` to prepend an ATA-creation instruction
+  /// when the recipient's associated token account does not yet exist.
   static Future<Uint8List> build({
     required String payer,
     required String recipient,
@@ -25,6 +35,11 @@ class SplTokenTransfer {
     );
   }
 
+  /// Builds a versioned (v0) SPL token transfer transaction for one or more
+  /// [transfers] from [payer]'s associated token account.
+  ///
+  /// For each transfer marked with [MultiTransfer.needsATA], an
+  /// `AssociatedTokenAccount` creation instruction is prepended.
   static Future<Uint8List> buildMulti({
     required String payer,
     required List<MultiTransfer> transfers,
@@ -93,9 +108,16 @@ class SplTokenTransfer {
   }
 }
 
+/// Describes a single transfer leg within a multi-recipient transaction.
 class MultiTransfer {
+  /// Base58 public key of the token recipient.
   final String recipient;
+
+  /// Transfer amount in token base units.
   final BigInt amount;
+
+  /// Whether an Associated Token Account creation instruction should be
+  /// included for this recipient.
   final bool needsATA;
 
   MultiTransfer({

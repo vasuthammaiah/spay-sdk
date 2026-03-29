@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solana_web3/solana_web3.dart' as web3;
@@ -11,14 +10,27 @@ import 'confirmation_poller.dart';
 import 'pending_transaction_manager.dart';
 import 'payment_providers.dart';
 
+/// Progression stages of a payment operation, from building through confirmation.
 enum PaymentStatus { idle, building, simulating, signing, sending, confirming, success, failed }
 
+/// Immutable snapshot of the current payment operation state.
 class PaymentState {
+  /// Current stage of the payment flow.
   final PaymentStatus status;
+
+  /// On-chain transaction signature once the transaction has been signed.
   final String? signature;
+
+  /// Error message from the last failed payment attempt, if any.
   final String? error;
+
+  /// The single [PaymentRequest] for a standard payment, if applicable.
   final PaymentRequest? request;
+
+  /// All requests when performing a multi-recipient payment.
   final List<PaymentRequest>? multiRequests;
+
+  /// `true` when the signed transaction was queued locally for later submission.
   final bool isOfflineReady;
 
   PaymentState({
@@ -30,10 +42,11 @@ class PaymentState {
     this.isOfflineReady = false,
   });
 
+  /// Returns a copy of this state with the provided fields replaced.
   PaymentState copyWith({
-    PaymentStatus? status, 
-    String? signature, 
-    String? error, 
+    PaymentStatus? status,
+    String? signature,
+    String? error,
     PaymentRequest? request,
     List<PaymentRequest>? multiRequests,
     bool? isOfflineReady,
@@ -49,22 +62,44 @@ class PaymentState {
   }
 }
 
+/// Parameters for a single SKR token payment.
 class PaymentRequest {
+  /// Base58 public key of the payment recipient.
   final String recipient;
+
+  /// Amount to send in SKR base units (1 SKR = 1,000,000 base units).
   final BigInt amount;
+
+  /// Optional human-readable label for this payment.
   final String? label;
   PaymentRequest({required this.recipient, required this.amount, this.label});
 }
 
+/// Confirmation record returned after a successful payment.
 class PaymentReceipt {
+  /// On-chain transaction signature.
   final String signature;
+
+  /// Amount transferred in SKR base units.
   final BigInt amount;
+
+  /// Base58 public key of the recipient.
   final String recipient;
+
+  /// Local time at which the receipt was created.
   final DateTime timestamp;
+
+  /// `true` when the transaction was queued offline and not yet confirmed.
   final bool isPending;
   PaymentReceipt({required this.signature, required this.amount, required this.recipient, required this.timestamp, this.isPending = false});
 }
 
+/// Riverpod [StateNotifier] that orchestrates the full SKR payment lifecycle:
+/// balance check, transaction building, simulation, MWA signing, submission,
+/// and on-chain confirmation polling.
+///
+/// Supports an offline-ready mode where the signed transaction is stored via
+/// [PendingTransactionManager] for deferred submission.
 class PaymentService extends StateNotifier<PaymentState> {
   final RpcClient _rpcClient;
   final MwaClient _mwaClient;
@@ -74,6 +109,9 @@ class PaymentService extends StateNotifier<PaymentState> {
 
   PaymentService(this._rpcClient, this._mwaClient, this._payerAddress, this._ref) : super(PaymentState());
 
+  /// Executes a single-recipient payment and returns a [PaymentReceipt] on success.
+  ///
+  /// Delegates to [payMulti] with a single [request].
   Future<PaymentReceipt?> pay(PaymentRequest request, {bool offlineReady = false, VoidCallback? onSuccess}) async {
     final signature = await payMulti([request], offlineReady: offlineReady, onSuccess: onSuccess);
     if (signature != null) {
@@ -88,6 +126,11 @@ class PaymentService extends StateNotifier<PaymentState> {
     return null;
   }
 
+  /// Executes a multi-recipient SKR payment in a single transaction.
+  ///
+  /// When [offlineReady] is `true` the signed transaction is stored locally
+  /// for later submission and the method returns immediately after signing.
+  /// Returns the transaction signature on success, or `null` on failure.
   Future<String?> payMulti(List<PaymentRequest> requests, {bool offlineReady = false, VoidCallback? onSuccess}) async {
     if (requests.isEmpty) return null;
     
@@ -197,6 +240,10 @@ class PaymentService extends StateNotifier<PaymentState> {
     }
   }
 
+  /// Attempts to submit all locally queued pending transactions to the network.
+  ///
+  /// Removes successfully submitted transactions and those already present
+  /// on-chain. Updates the error field for transactions that fail for other reasons.
   Future<void> submitPendingTransactions() async {
     final pending = await _pendingManager.getAll();
     if (pending.isEmpty) return;
@@ -245,5 +292,6 @@ class PaymentService extends StateNotifier<PaymentState> {
     }
   }
 
+  /// Resets payment state back to [PaymentStatus.idle].
   void reset() { state = PaymentState(); }
 }
