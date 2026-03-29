@@ -1,37 +1,183 @@
-# SeekerPay SDK Monorepo
+# SeekerPay SDK
 
-Welcome to the official SDK repository for SeekerPay, the high-performance, Solana-based mobile payment ecosystem designed for the Seeker mobile platform.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS-blue)](https://flutter.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
+[![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?logo=solana)](https://solana.com)
 
-## Overview
+The official open-source Flutter SDK for building Solana payment experiences on the **Seeker mobile platform** — supporting SKR token transfers, `.skr` / `.sol` domain resolution, Seeker Genesis Token verification, NFC tap-to-pay, Bluetooth P2P handoff, QR payments, and group bill splitting.
 
-This repository contains a suite of specialized SDKs (packages) that power the SeekerPay experience, from core blockchain interactions to contactless NFC/Bluetooth payments.
+---
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| [**seekerpay_core**](./packages/seekerpay_core) | Foundational Solana RPC, payment services, and wallet state. |
-| [**seekerpay_domains**](./packages/seekerpay_domains) | SNS (.sol) and Seeker (.skr) domain resolution. |
-| [**seekerpay_qr**](./packages/seekerpay_qr) | Solana Pay-compatible QR generation and scanning. |
-| [**seekerpay_nfc**](./packages/seekerpay_nfc) | Contactless Tap-to-Pay via NFC NDEF payloads. |
-| [**seekerpay_bluetooth**](./packages/seekerpay_bluetooth) | High-speed P2P discovery via BLE and Nearby Connections. |
-| [**seekerpay_split**](./packages/seekerpay_split) | Group payment management and on-chain bill tracking. |
-| [**seekerpay_ui**](./packages/seekerpay_ui) | Matrix-inspired dark theme and custom payment animations. |
+| Package | Version | Description |
+|---------|---------|-------------|
+| [`seekerpay_core`](./packages/seekerpay_core) | 1.0.0 | Solana RPC, wallet adapter, SKR payments, activity history |
+| [`seekerpay_domains`](./packages/seekerpay_domains) | 1.0.0 | `.skr` and `.sol` domain resolution, Seeker Genesis verification |
+| [`seekerpay_qr`](./packages/seekerpay_qr) | 1.0.0 | Solana Pay-compatible QR code generation and decoding |
+| [`seekerpay_ui`](./packages/seekerpay_ui) | 1.0.0 | Dark theme, `PaymentPreviewSheet`, NFC pulse animation |
+| [`seekerpay_nfc`](./packages/seekerpay_nfc) | 1.0.0 | NFC tap-to-pay via NDEF payloads |
+| [`seekerpay_bluetooth`](./packages/seekerpay_bluetooth) | 1.0.0 | P2P payment handoff via Google Nearby Connections |
+| [`seekerpay_split`](./packages/seekerpay_split) | 1.0.0 | Group bill splitting with on-chain payment verification |
+
+---
 
 ## Quick Start
 
-Most SeekerPay features rely on `seekerpay_core`. To get started, add it to your Flutter project:
+### 1. Add dependencies
+
+All packages live in this monorepo. Reference them by path in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
   seekerpay_core:
     path: ./seekerpay-sdk/packages/seekerpay_core
+  seekerpay_domains:
+    path: ./seekerpay-sdk/packages/seekerpay_domains
+  seekerpay_qr:
+    path: ./seekerpay-sdk/packages/seekerpay_qr
+  seekerpay_ui:
+    path: ./seekerpay-sdk/packages/seekerpay_ui
+  seekerpay_nfc:
+    path: ./seekerpay-sdk/packages/seekerpay_nfc
+  seekerpay_bluetooth:
+    path: ./seekerpay-sdk/packages/seekerpay_bluetooth
+  seekerpay_split:
+    path: ./seekerpay-sdk/packages/seekerpay_split
 ```
+
+### 2. Bootstrap Riverpod
+
+All stateful services use [Riverpod](https://riverpod.dev). Wrap your app:
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+```
+
+### 3. Send your first SKR payment
+
+```dart
+import 'package:seekerpay_core/seekerpay_core.dart';
+import 'package:seekerpay_ui/seekerpay_ui.dart';
+
+// Inside a ConsumerWidget
+final notifier = ref.read(paymentServiceProvider.notifier);
+
+showModalBottomSheet(
+  context: context,
+  isScrollControlled: true,
+  builder: (_) => PaymentPreviewSheet(
+    request: PaymentRequest(
+      recipient: 'RECIPIENT_WALLET_ADDRESS',
+      amount: BigInt.from(1_000_000), // 1.000000 SKR (6 decimals)
+    ),
+    onConfirm: (offlineReady) {
+      notifier.pay(
+        PaymentRequest(recipient: 'RECIPIENT_WALLET_ADDRESS', amount: BigInt.from(1_000_000)),
+        offlineReady: offlineReady,
+      );
+    },
+  ),
+);
+```
+
+### 4. Resolve a .skr domain
+
+```dart
+import 'package:seekerpay_domains/seekerpay_domains.dart';
+
+final resolver = ref.read(snsResolverProvider);
+final address = await resolver.resolve('alice.skr');
+// address == 'CvH5vB...' (mainnet wallet)
+```
+
+---
 
 ## Architecture
 
-SeekerPay is built with a modular architecture, allowing developers to pick and choose only the components they need. All packages are written in pure Dart/Flutter and optimized for mobile performance on Solana.
+```
+seekerpay_core          ← foundation (RPC, wallet, payments, activity)
+    ↑
+seekerpay_domains       ← domain resolution + genesis verification (uses core)
+seekerpay_qr            ← QR generation + Solana Pay URL codec (uses core)
+seekerpay_split         ← group splits + on-chain verification (uses core)
+seekerpay_ui            ← UI components + theme (uses core)
+seekerpay_nfc           ← NFC tap-to-pay (uses core)
+seekerpay_bluetooth     ← Nearby P2P (uses core)
+```
+
+All packages depend on `seekerpay_core`. Packages do **not** depend on each other (except `seekerpay_domains` and `seekerpay_ui` which import `seekerpay_core`).
+
+---
+
+## Key Concepts
+
+### SKR Token
+
+The native token of the Seeker ecosystem. Defined in `seekerpay_core`:
+
+```dart
+SKRToken.mintAddress  // 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3'
+SKRToken.decimals     // 6
+```
+
+All `amount` fields across the SDK are in **base units** (i.e. lamport-equivalent: `1 SKR = 1_000_000`).
+
+### Solana Mobile Wallet Adapter (MWA)
+
+Payments are signed by the user's on-device wallet via the [Solana Mobile Wallet Adapter protocol](https://docs.solanamobile.com/getting-started/overview). No private keys are ever handled by this SDK.
+
+### Seeker Genesis Token
+
+The Seeker Genesis Token (SGT) identifies genuine Seeker device owners. It is a **Token-2022 group NFT** with group mint `GT22s89nU4iWFkNXj1Bw6uYhJJWDRPpShHt4Bk8f99Te`. Verification is done via the Helius DAS API:
+
+```dart
+final isVerified = await ref.read(isSeekerVerifiedProvider.future);
+```
+
+### Helius API Key
+
+Several features (activity history, genesis verification) use the [Helius](https://helius.dev) enhanced Solana RPC. Configure it via:
+
+```dart
+await ref.read(rpcUrlProvider.notifier).setHeliusKey('YOUR_HELIUS_API_KEY');
+```
+
+---
+
+## Requirements
+
+- Flutter **3.x** or later
+- Dart **3.x** or later
+- Android **8.0+** (API 26) — for Solana Mobile Wallet Adapter
+- A [Helius API key](https://dashboard.helius.dev) (free tier available) for full activity history
+
+---
+
+## Contributing
+
+Contributions are welcome! Please open an issue or pull request.
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/my-feature`
+3. Commit your changes with a clear message
+4. Open a pull request against `main`
+
+Please ensure all public APIs are documented with dartdoc comments.
+
+---
+
+## Author
+
+**Vasu Thammaiah** — [@vasuthammaiah](https://github.com/vasuthammaiah)
+
+---
 
 ## License
 
-All SeekerPay SDKs are licensed under the MIT License.
+SeekerPay SDK is released under the [MIT License](./LICENSE).

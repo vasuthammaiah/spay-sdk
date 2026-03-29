@@ -1,3 +1,7 @@
+## 1.0.6
+
+* Bump seekerpay_core to ^1.0.6.
+
 ## 1.0.5
 
 * Bump seekerpay_core to ^1.0.5.

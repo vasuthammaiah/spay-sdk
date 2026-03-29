@@ -1,3 +1,7 @@
+## 1.0.6
+
+* Fix received SKR activities not showing: sort merged signatures by blockTime before applying the 20-tx limit so receives are not pushed out by sends.
+
 ## 1.0.5
 
 * Fix received SKR activity not showing: merge v0 lookup-table addresses into parser, guard accountIndex overflow, fix skrActivity flag for new ATAs.

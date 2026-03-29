@@ -141,10 +141,11 @@ class ActivityService extends StateNotifier<ActivityState> {
       final List<TransactionRecord> allTxs = [];
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
       final recentSigs = allSignatures.where((s) {
-        if (s.blockTime == null) return true; 
+        if (s.blockTime == null) return true;
         final ts = DateTime.fromMillisecondsSinceEpoch(s.blockTime! * 1000);
         return ts.isAfter(sevenDaysAgo);
-      }).toList();
+      }).toList()
+        ..sort((a, b) => (b.blockTime ?? 0).compareTo(a.blockTime ?? 0));
 
       if (recentSigs.isEmpty) {
         if (mounted) state = state.copyWith(isLoading: false);
