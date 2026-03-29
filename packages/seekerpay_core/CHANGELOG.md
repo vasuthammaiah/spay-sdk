@@ -1,3 +1,7 @@
+## 1.0.4
+
+* Align version with all other SeekerPay packages.
+
 ## 1.0.3
 
 * Add `showFungible` parameter to `getAssetsByOwner` to support fungible Token-2022 asset lookups.
