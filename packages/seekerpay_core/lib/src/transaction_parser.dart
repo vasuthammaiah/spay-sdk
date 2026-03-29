@@ -44,11 +44,24 @@ class TransactionParser {
       final accountKeys = message['accountKeys'] as List?;
       if (accountKeys == null) return [];
 
+      // Start with static account keys
       final List<String> addresses = accountKeys.map((k) {
         if (k is String) return k;
-        if (k is Map) return (k['pubkey'] as String);
+        if (k is Map) return (k['pubkey'] as String? ?? '');
         return '';
       }).toList();
+
+      // Merge lookup-table resolved addresses (v0 transactions).
+      // meta.loadedAddresses has {writable: [...], readonly: [...]} — appended
+      // in that order after static keys, matching the accountIndex numbering.
+      final loadedAddresses = meta['loadedAddresses'] as Map?;
+      if (loadedAddresses != null) {
+        final writable = loadedAddresses['writable'] as List? ?? [];
+        final readonly = loadedAddresses['readonly'] as List? ?? [];
+        for (final a in [...writable, ...readonly]) {
+          addresses.add(a.toString());
+        }
+      }
 
       final targetAddr = userAddress.trim();
 
@@ -81,11 +94,14 @@ class TransactionParser {
       String? skrCounterparty;
 
       for (final b in preToken) {
-        if (b['mint'] == SKRToken.mintAddress && userIndices.contains(b['accountIndex'])) {
-          final ui = b['uiTokenAmount'] as Map<String, dynamic>?;
-          final amount = ui != null ? _parseUiAmount(ui) : null;
-          if (amount != null) {
-            skrPre += amount;
+        if (b['mint'] == SKRToken.mintAddress) {
+          final accountIdx = b['accountIndex'] as int?;
+          if (accountIdx != null && userIndices.contains(accountIdx)) {
+            final ui = b['uiTokenAmount'] as Map<String, dynamic>?;
+            final amount = ui != null ? _parseUiAmount(ui) : null;
+            if (amount != null) {
+              skrPre += amount;
+            }
             skrActivity = true;
           }
         }
@@ -97,15 +113,17 @@ class TransactionParser {
             final isUserAccount = userIndices.contains(accountIdx);
             final ui = b['uiTokenAmount'] as Map<String, dynamic>?;
             final amount = ui != null ? _parseUiAmount(ui) : null;
-            
+
             if (isUserAccount) {
               if (amount != null) {
                 skrPost += amount;
-                skrActivity = true;
               }
+              skrActivity = true;
             } else {
-              // Potential counterparty: it's an SKR account but not the user's
-              skrCounterparty = b['owner'] ?? addresses[accountIdx];
+              // Potential counterparty — guard against lookup-table index overflow
+              final owner = b['owner']?.toString();
+              skrCounterparty = owner ??
+                  (accountIdx < addresses.length ? addresses[accountIdx] : null);
             }
           }
         }

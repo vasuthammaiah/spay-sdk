@@ -1,3 +1,7 @@
+## 1.0.5
+
+* Bump seekerpay_core to ^1.0.5.
+
 ## 1.0.4
 
 * Align version with all other SeekerPay packages. Bump seekerpay_core to ^1.0.4.

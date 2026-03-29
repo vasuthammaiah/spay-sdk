@@ -57,12 +57,26 @@ class ActivityState {
 class ActivityService extends StateNotifier<ActivityState> {
   final RpcClient _rpc;
   final String _address;
-  final Ref _ref;
   static const String _cacheKeyPrefix = 'cached_activity_';
+  static const Duration _refreshInterval = Duration(seconds: 8);
 
-  ActivityService(this._rpc, this._address, this._ref) 
-    : super(ActivityState(transactions: [])) {
-    _loadFromCache();
+  Timer? _refreshTimer;
+  bool _isRefreshing = false;
+
+  ActivityService(this._rpc, this._address)
+      : super(ActivityState(transactions: [])) {
+    _loadFromCache().then((_) {
+      if (mounted) load();
+    });
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      if (mounted) load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadFromCache() async {
@@ -90,18 +104,16 @@ class ActivityService extends StateNotifier<ActivityState> {
   /// Only runs when a Helius API key is configured. Transactions older than
   /// 7 days are excluded. Results are cached for offline access.
   Future<void> load() async {
-    if (_address.isEmpty) return;
+    if (!mounted || _address.isEmpty || _isRefreshing) return;
 
-    // Check if Helius is configured via ref
-    final hasHelius = _ref.read(hasHeliusKeyProvider);
-    if (!hasHelius) {
-      state = state.copyWith(
-        isLoading: false, 
-        error: 'Helius API key not configured'
-      );
+    if (!_rpc.rpcUrl.contains('helius-rpc.com')) {
+      if (state.transactions.isEmpty) {
+        state = state.copyWith(isLoading: false, error: 'Helius API key not configured');
+      }
       return;
     }
 
+    _isRefreshing = true;
     state = state.copyWith(isLoading: state.transactions.isEmpty, error: null);
     try {
       // Fetch signatures and filter to a rolling 7 days to reduce RPC load.
@@ -122,7 +134,7 @@ class ActivityService extends StateNotifier<ActivityState> {
       final allSignatures = merged.values.toList();
       
       if (allSignatures.isEmpty) {
-        state = state.copyWith(isLoading: false, transactions: []);
+        if (mounted) state = state.copyWith(isLoading: false, transactions: []);
         return;
       }
 
@@ -135,7 +147,7 @@ class ActivityService extends StateNotifier<ActivityState> {
       }).toList();
 
       if (recentSigs.isEmpty) {
-        state = state.copyWith(isLoading: false, transactions: []);
+        if (mounted) state = state.copyWith(isLoading: false);
         return;
       }
 
@@ -183,13 +195,21 @@ class ActivityService extends StateNotifier<ActivityState> {
       }
       
       allTxs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      state = state.copyWith(isLoading: false, transactions: List.from(allTxs));
+      if (mounted) state = state.copyWith(isLoading: false, transactions: List.from(allTxs));
 
       // Cache the result
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('$_cacheKeyPrefix$_address', jsonEncode(allTxs.map((e) => e.toJson()).toList()));
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      if (mounted) {
+        if (state.transactions.isEmpty) {
+          state = state.copyWith(isLoading: false, error: e.toString());
+        } else {
+          state = state.copyWith(isLoading: false);
+        }
+      }
+    } finally {
+      _isRefreshing = false;
     }
   }
 }
@@ -198,5 +218,5 @@ class ActivityService extends StateNotifier<ActivityState> {
 final activityServiceProvider = StateNotifierProvider.autoDispose<ActivityService, ActivityState>((ref) {
   final rpc = ref.watch(rpcClientProvider);
   final wallet = ref.watch(walletStateProvider);
-  return ActivityService(rpc, wallet.address ?? '', ref);
+  return ActivityService(rpc, wallet.address ?? '');
 });
