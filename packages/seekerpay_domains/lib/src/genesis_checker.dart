@@ -22,13 +22,11 @@ class GenesisChecker {
   /// Returns `true` when [address] holds at least one verified genesis token.
   Future<bool> hasGenesisToken(String address) async {
     try {
-      final assets = await _rpc.getAssetsByOwner(address);
+      final assets = await _rpc.getAssetsByOwner(address, showFungible: true);
       for (final asset in assets) {
         if (_verifiedMints.contains(asset['id'])) return true;
       }
-      return false;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) {}
+    return false;
   }
 }

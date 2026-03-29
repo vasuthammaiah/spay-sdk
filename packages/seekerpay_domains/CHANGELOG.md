@@ -1,3 +1,7 @@
+## 1.0.4
+
+* Fix genesis token verification not detecting fungible Token-2022 tokens (Seeker Genesis Token and Chapter 2 Preorder Token) in connected wallets.
+
 ## 1.0.3
 
 * Fix genesis token verification logic.
