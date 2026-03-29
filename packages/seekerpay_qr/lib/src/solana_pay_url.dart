@@ -1,10 +1,23 @@
+/// Represents a Solana Pay transfer request URL (`solana:<recipient>?...`).
+///
+/// Provides [encode] to produce a URI string and [decode] to parse one.
 class SolanaPayUrl {
+  /// Base58 public key of the payment recipient.
   final String recipient;
+
+  /// Transfer amount in token base units (amount × 10^6 for 6-decimal tokens).
   final BigInt? amount;
+
+  /// SPL token mint address. When omitted, the request is for native SOL.
   final String? splToken;
+
+  /// Optional human-readable label for the payment.
   final String? label;
+
+  /// Optional message to display to the user.
   final String? message;
   SolanaPayUrl({required this.recipient, this.amount, this.splToken, this.label, this.message});
+  /// Encodes this object as a `solana:` URI string suitable for embedding in a QR code.
   String encode() {
     final uri = Uri(scheme: 'solana', path: recipient, queryParameters: {
       if (amount != null) 'amount': (amount!.toDouble() / 1000000).toString(),
@@ -14,6 +27,9 @@ class SolanaPayUrl {
     });
     return uri.toString();
   }
+  /// Parses a `solana:` URI string into a [SolanaPayUrl].
+  ///
+  /// Throws [FormatException] if [url] does not start with `solana:`.
   static SolanaPayUrl decode(String url) {
     if (!url.startsWith('solana:')) throw const FormatException('Not a valid Solana Pay URL');
     

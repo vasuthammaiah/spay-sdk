@@ -1,17 +1,21 @@
-# SeekerPay NFC SDK
+# seekerpay_nfc
 
-A specialized SDK for facilitating contactless Solana payments via NFC (Near Field Communication), enabling "Tap-to-Pay" functionality for SKR tokens.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
+
+NFC tap-to-pay for the SeekerPay SDK. Writes Solana Pay URLs to NFC tags and reads them from tags or other devices using NDEF records via a native Android/iOS platform channel.
+
+---
 
 ## Features
 
-- **NFC Transfer Payload**: Compact NDEF record encoding for Solana Pay requests.
-- **Bi-Directional Support**: Read payment requests from tags/devices and write requests for others to scan.
-- **Secure Handoff**: Optimized for fast, secure transmission of transaction metadata.
-- **Cross-Platform**: Unified API for iOS and Android NFC interactions.
+- **Write payment tags** — Write a `solana:` Solana Pay URL to any writable NFC tag.
+- **Read payment requests** — Start a continuous NFC session and receive Solana Pay URLs as they are scanned.
+- **Availability check** — Detect whether the device supports NFC before prompting the user.
+- **Settings deep-link** — Open the device NFC settings screen directly.
+
+---
 
 ## Installation
-
-Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
@@ -19,29 +23,86 @@ dependencies:
     path: ../packages/seekerpay_nfc
 ```
 
+### Android setup
+
+Ensure the following permission is in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.NFC" />
+<uses-feature android:name="android.hardware.nfc" android:required="false" />
+```
+
+---
+
 ## Usage
 
-### Reading a Payment Request
+### Check availability
 
 ```dart
-final nfcService = NfcService();
-nfcService.startSession(onPayloadRead: (payload) {
-  print('Recipient from NFC: ${payload.recipient}');
-  print('Amount from NFC: ${payload.amount}');
-});
+import 'package:seekerpay_nfc/seekerpay_nfc.dart';
+
+final nfc = NfcHandler();
+final available = await nfc.isAvailable();
+if (!available) {
+  // Show a "NFC not supported" message or open settings
+  await nfc.openSettings();
+}
 ```
 
-### Writing a Payment Request (Tag Mode)
+### Read NFC tags (continuous)
 
 ```dart
-final payload = NfcTransferPayload(
-  recipient: 'vAceH...',
-  amount: BigInt.from(1000000), // 1 SKR
-  label: 'NFC Coffee',
+await nfc.startReading(
+  onTagRead: (String solanaPayUrl) {
+    print('Received: $solanaPayUrl');
+    // Parse it with SolanaPayUrl.decode(solanaPayUrl)
+    nfc.stopReading(); // stop after first tag if desired
+  },
 );
-await nfcService.writePayload(payload);
 ```
+
+### Write a payment tag
+
+```dart
+import 'package:seekerpay_qr/seekerpay_qr.dart';
+import 'package:seekerpay_core/seekerpay_core.dart';
+
+final url = SolanaPayUrl(
+  recipient: myWalletAddress,
+  amount: BigInt.from(1_000_000), // 1.00 SKR
+  splToken: SKRToken.mintAddress,
+  label: 'Pay me 1 SKR',
+).encode();
+
+await nfc.writeNdefTag(
+  solanaPayUrl: url,
+  onTagWritten: () => print('Tag written successfully'),
+  onTagWriteError: (e) => print('Write failed: $e'),
+);
+```
+
+### Riverpod provider
+
+```dart
+// Access the singleton NfcHandler
+final nfc = ref.read(nfcHandlerProvider);
+```
+
+---
+
+## `NfcHandler` API
+
+| Method | Description |
+|--------|-------------|
+| `isAvailable()` | Returns `true` if the device has NFC hardware |
+| `startReading({onTagRead})` | Begin scanning; callback fires for each scanned tag |
+| `stopReading()` | Stop the active NFC scan session |
+| `writePaymentTag(url)` | Write a Solana Pay URL to a tag (fire-and-forget) |
+| `writeNdefTag({url, onTagWritten, onTagWriteError})` | Write with completion/error callbacks |
+| `openSettings()` | Open device NFC settings |
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see [LICENSE](../../LICENSE).

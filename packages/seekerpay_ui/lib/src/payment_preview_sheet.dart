@@ -2,8 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:seekerpay_core/seekerpay_core.dart';
 import 'app_theme.dart';
 
+/// A bottom-sheet widget that presents payment details to the user and lets
+/// them optionally enable offline-ready mode before confirming.
+///
+/// Calls [onConfirm] with `true` when offline-ready mode is toggled on,
+/// or `false` for an immediate online payment.
 class PaymentPreviewSheet extends StatefulWidget {
+  /// The payment to preview.
   final PaymentRequest request;
+
+  /// Callback invoked when the user confirms the payment.
+  /// The boolean argument is `true` if offline-ready mode was enabled.
   final void Function(bool offlineReady) onConfirm;
   const PaymentPreviewSheet({super.key, required this.request, required this.onConfirm});
 
@@ -37,9 +46,9 @@ class _PaymentPreviewSheetState extends State<PaymentPreviewSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: _offlineReady ? AppColors.orange.withOpacity(0.1) : Colors.white.withOpacity(0.03),
+              color: _offlineReady ? AppColors.orange.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _offlineReady ? AppColors.orange.withOpacity(0.3) : Colors.white12),
+              border: Border.all(color: _offlineReady ? AppColors.orange.withValues(alpha: 0.3) : Colors.white12),
             ),
             child: Row(
               children: [
@@ -57,7 +66,7 @@ class _PaymentPreviewSheetState extends State<PaymentPreviewSheet> {
                 Switch(
                   value: _offlineReady,
                   onChanged: (v) => setState(() => _offlineReady = v),
-                  activeColor: AppColors.orange,
+                  activeThumbColor: AppColors.orange,
                 ),
               ],
             ),
@@ -66,7 +75,7 @@ class _PaymentPreviewSheetState extends State<PaymentPreviewSheet> {
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
             child: const Row(
               children: [
                 Icon(Icons.lock_outline, size: 16, color: AppColors.primary),

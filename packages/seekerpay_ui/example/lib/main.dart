@@ -1,61 +1,121 @@
+/// seekerpay_ui — example app.
+///
+/// Demonstrates AppTheme, AppColors, NfcPulseAnimation, and PaymentPreviewSheet.
+library;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:seekerpay_core/seekerpay_core.dart';
 import 'package:seekerpay_ui/seekerpay_ui.dart';
 
 void main() {
-  runApp(const MaterialApp(
-    home: UiExample(),
-    debugShowCheckedModeBanner: false,
-  ));
+  runApp(const ProviderScope(child: _App()));
 }
 
-class UiExample extends StatefulWidget {
-  const UiExample({super.key});
-
+class _App extends StatelessWidget {
+  const _App();
   @override
-  State<UiExample> createState() => _UiExampleState();
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'seekerpay_ui example',
+        // Apply the SeekerPay dark theme
+        theme: AppTheme.darkTheme,
+        debugShowCheckedModeBanner: false,
+        home: const _HomeScreen(),
+      );
 }
 
-class _UiExampleState extends State<UiExample> {
-  bool _isAnimating = true;
+class _HomeScreen extends ConsumerWidget {
+  const _HomeScreen();
 
   @override
-  Widget build(BuildContext context) {
-    // We apply our theme manually for the example
-    return Theme(
-      data: AppTheme.darkTheme,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('SeekerPay UI Example')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(40),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('NFC Pulse Animation:', style: TextStyle(color: Colors.white70)),
-                const SizedBox(height: 32),
-                NfcPulseAnimation(
-                  isScanning: _isAnimating,
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                    child: const Icon(Icons.sensors_rounded, size: 48, color: Colors.black),
-                  ),
-                ),
-                const SizedBox(height: 64),
-                ElevatedButton(
-                  onPressed: () => setState(() => _isAnimating = !_isAnimating),
-                  child: Text(_isAnimating ? 'Stop Animation' : 'Start Animation'),
-                ),
-                const SizedBox(height: 24),
-                OutlinedButton(
-                  onPressed: () {},
-                  child: const Text('Sample Outlined Button'),
-                ),
-              ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('seekerpay_ui')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Colour swatches ──────────────────────────────────────────
+            const Text('APP COLORS',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              _Swatch('primary', AppColors.primary),
+              _Swatch('surface', AppColors.surface),
+              _Swatch('purple', AppColors.purple),
+              _Swatch('green', AppColors.green),
+              _Swatch('blue', AppColors.blue),
+              _Swatch('orange', AppColors.orange),
+              _Swatch('pink', AppColors.pink),
+            ]),
+
+            const SizedBox(height: 32),
+
+            // ── NFC pulse animation ──────────────────────────────────────
+            const Text('NFC PULSE ANIMATION',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            const Center(child: NfcPulseAnimation(size: 180)),
+
+            const SizedBox(height: 32),
+
+            // ── PaymentPreviewSheet ──────────────────────────────────────
+            const Text('PAYMENT PREVIEW SHEET',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _showSheet(context),
+              child: const Text('Open PaymentPreviewSheet'),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+
+  void _showSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PaymentPreviewSheet(
+        request: PaymentRequest(
+          recipient: 'CvH5vBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+          amount: BigInt.from(2500000), // 2.5 SKR
+          label: 'UI Example',
+        ),
+        onConfirm: (offlineReady) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Confirmed (offline: $offlineReady)')),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _Swatch extends StatelessWidget {
+  final String name;
+  final Color color;
+  const _Swatch(this.name, this.color);
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white12),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(name, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+        ],
+      );
 }

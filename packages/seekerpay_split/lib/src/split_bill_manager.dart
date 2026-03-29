@@ -3,12 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seekerpay_core/seekerpay_core.dart';
 
+/// Payment status for a single participant in a split bill.
 enum SplitStatus { pending, paid, overdue }
 
+/// Represents one participant and their share in a split bill.
 class SplitParticipant {
+  /// Base58 wallet address of the participant.
   final String address;
+
+  /// Optional resolved domain name (e.g. `.skr`) for display purposes.
   final String? domain;
+
+  /// Amount owed by this participant in SKR base units.
   final BigInt amount;
+
+  /// Current payment status for this participant.
   final SplitStatus status;
 
   SplitParticipant({
@@ -18,6 +27,7 @@ class SplitParticipant {
     this.status = SplitStatus.pending
   });
 
+  /// Returns a copy of this participant with an updated [status].
   SplitParticipant copyWith({SplitStatus? status}) => SplitParticipant(
     address: address, 
     domain: domain, 
@@ -25,6 +35,7 @@ class SplitParticipant {
     status: status ?? this.status
   );
 
+  /// Serialises this participant to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
     'address': address,
     'domain': domain,
@@ -32,6 +43,7 @@ class SplitParticipant {
     'status': status.index,
   };
 
+  /// Deserialises a [SplitParticipant] from a map produced by [toJson].
   factory SplitParticipant.fromJson(Map<String, dynamic> json) => SplitParticipant(
     address: json['address'],
     domain: json['domain'],
@@ -40,11 +52,21 @@ class SplitParticipant {
   );
 }
 
+/// A bill-splitting session with a set of participants and their payment statuses.
 class SplitBill {
+  /// Unique identifier (milliseconds since epoch as a string).
   final String id;
+
+  /// Human-readable description of the bill.
   final String label;
+
+  /// Total bill amount in SKR base units.
   final BigInt totalAmount;
+
+  /// All participants and their individual share amounts.
   final List<SplitParticipant> participants;
+
+  /// Time at which the split was created.
   final DateTime createdAt;
 
   SplitBill({
@@ -55,8 +77,10 @@ class SplitBill {
     required this.createdAt
   });
 
+  /// Number of participants whose status is [SplitStatus.paid].
   int get paidCount => participants.where((p) => p.status == SplitStatus.paid).length;
 
+  /// Serialises this bill to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
     'id': id,
     'label': label,
@@ -65,6 +89,7 @@ class SplitBill {
     'createdAt': createdAt.toIso8601String(),
   };
 
+  /// Deserialises a [SplitBill] from a map produced by [toJson].
   factory SplitBill.fromJson(Map<String, dynamic> json) => SplitBill(
     id: json['id'],
     label: json['label'],
@@ -74,6 +99,8 @@ class SplitBill {
   );
 }
 
+/// Riverpod [StateNotifier] that manages a list of [SplitBill] sessions,
+/// persisting them to [SharedPreferences] and verifying payment status via RPC.
 class SplitBillManager extends StateNotifier<List<SplitBill>> {
   final RpcClient _rpcClient;
   static const _storageKey = 'seekerpay_splits';
@@ -100,10 +127,12 @@ class SplitBillManager extends StateNotifier<List<SplitBill>> {
     } catch (_) {}
   }
 
+  /// Creates a new split bill, dividing [totalAmount] equally among
+  /// [participantInfo] entries and persisting the result.
   Future<void> createSplit({
-    required String label, 
-    required BigInt totalAmount, 
-    required List<Map<String, String>> participantInfo
+    required String label,
+    required BigInt totalAmount,
+    required List<Map<String, String>> participantInfo,
   }) async {
     if (participantInfo.isEmpty) return;
     
@@ -127,6 +156,8 @@ class SplitBillManager extends StateNotifier<List<SplitBill>> {
     await _saveToCache();
   }
 
+  /// Creates a new split bill from a pre-built list of [participants] where
+  /// each participant already has a specific amount assigned.
   Future<void> createSplitFromRecipients({
     required String label,
     required List<SplitParticipant> participants,
@@ -145,6 +176,7 @@ class SplitBillManager extends StateNotifier<List<SplitBill>> {
     await _saveToCache();
   }
 
+  /// Manually marks a specific participant as [SplitStatus.paid] and persists the change.
   Future<void> markAsPaid(String splitId, String participantAddress) async {
     state = [
       for (final s in state)
@@ -168,6 +200,12 @@ class SplitBillManager extends StateNotifier<List<SplitBill>> {
     await _saveToCache();
   }
 
+  /// Checks the blockchain for incoming payments to [organizerAddress] and
+  /// outgoing payments from each participant to auto-update [SplitStatus].
+  ///
+  /// Scans both the organizer's recent transactions and each unpaid
+  /// participant's recent transactions. Matches on amount within a 0.001 SKR
+  /// tolerance. Persists any status changes.
   Future<void> refreshSplitStatus(String splitId, String organizerAddress) async {
     if (organizerAddress.isEmpty) return;
     final splitIndex = state.indexWhere((s) => s.id == splitId);
@@ -316,12 +354,14 @@ class SplitBillManager extends StateNotifier<List<SplitBill>> {
     }
   }
 
+  /// Removes the split identified by [splitId] from state and persisted storage.
   Future<void> deleteSplit(String splitId) async {
     state = state.where((s) => s.id != splitId).toList();
     await _saveToCache();
   }
 }
 
+/// Provider for [SplitBillManager] using the current [rpcClientProvider].
 final splitBillProvider = StateNotifierProvider<SplitBillManager, List<SplitBill>>((ref) {
   return SplitBillManager(ref.watch(rpcClientProvider));
 });

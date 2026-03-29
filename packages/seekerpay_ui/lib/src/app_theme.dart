@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Centralised colour palette for the SeekerPay UI.
+///
+/// Uses a pure monochromatic dark base with vibrant accent colours for icons.
 class AppColors {
   // Pure Monochromatic Theme
   static const Color background = Color(0xFF000000); // Absolute Black
@@ -23,6 +26,7 @@ class AppColors {
   static const Color pink = Color(0xFFFF375F);
 }
 
+/// Predefined [LinearGradient] values used across the SeekerPay UI.
 class AppGradients {
   // Monochromatic Gradients
   static const LinearGradient primary = LinearGradient(
@@ -53,7 +57,9 @@ class AppGradients {
   );
 }
 
+/// Factory for the SeekerPay [ThemeData] configurations.
 class AppTheme {
+  /// The primary dark [ThemeData] using Material 3 with [AppColors] and [AppGradients].
   static ThemeData get darkTheme => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
@@ -64,7 +70,6 @@ class AppTheme {
       primary: AppColors.primary,
       secondary: AppColors.primary,
       surface: AppColors.surface,
-      background: AppColors.background,
       error: AppColors.error,
       onPrimary: Colors.black,
       onSurface: AppColors.text,
