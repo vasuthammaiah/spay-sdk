@@ -261,6 +261,7 @@ class RpcClient {
   }) async {
     final result = await _post('getAssetsByOwner', {
       'ownerAddress': address,
+      'page': 1,
       'displayOptions': {
         'showFungible': showFungible,
         'showNativeBalance': false,
@@ -268,6 +269,96 @@ class RpcClient {
       'limit': limit,
     });
     return (result?['items'] as List?) ?? [];
+  }
+
+  /// Returns the token balance for [mint] held by [address] under the
+  /// Token-2022 program (`TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`).
+  ///
+  /// Works on any standard Solana RPC — no Helius key required. Returns
+  /// [BigInt.zero] if the wallet holds none of that token.
+  Future<BigInt> getToken22BalanceByMint(String address, String mint) async {
+    const token22Program = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+    final result = await _post('getTokenAccountsByOwner', [
+      address,
+      {'programId': token22Program},
+      {'encoding': 'jsonParsed', 'commitment': 'confirmed'},
+    ]);
+    final accounts = result['value'] as List;
+    for (final account in accounts) {
+      try {
+        final info = account['account']['data']['parsed']['info'];
+        if (info['mint'] == mint) {
+          return BigInt.parse(info['tokenAmount']['amount'].toString());
+        }
+      } catch (_) {}
+    }
+    return BigInt.zero;
+  }
+
+  /// Returns `true` when [address] holds at least one Token-2022 NFT
+  /// (decimals = 0, amount = 1) whose mint account indicates membership in
+  /// [groupAddress] or whose mint authority equals [mintAuthority].
+  ///
+  /// This is used as a standard-RPC fallback for Seeker Genesis Token
+  /// verification when no Helius DAS endpoint is available. Each SGT has a
+  /// unique per-device mint, so membership is determined by inspecting the
+  /// Token-2022 group extension on the mint account rather than comparing a
+  /// single shared mint address.
+  Future<bool> hasToken22InGroup(
+    String address, {
+    required String groupAddress,
+    required String mintAuthority,
+  }) async {
+    const token22Program = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+    final result = await _post('getTokenAccountsByOwner', [
+      address,
+      {'programId': token22Program},
+      {'encoding': 'jsonParsed', 'commitment': 'confirmed'},
+    ]);
+    final accounts = result['value'] as List;
+
+    for (final account in accounts) {
+      try {
+        final info = account['account']['data']['parsed']['info'];
+
+        // Only inspect NFT-like tokens: 0 decimals, non-zero balance.
+        final tokenAmount = info['tokenAmount'] as Map<String, dynamic>;
+        if (tokenAmount['decimals'] != 0) continue;
+        final amount =
+            BigInt.tryParse(tokenAmount['amount'].toString()) ?? BigInt.zero;
+        if (amount == BigInt.zero) continue;
+
+        final mintAddress = info['mint'] as String;
+        final mintData = await getAccountInfo(mintAddress);
+        if (mintData == null) continue;
+
+        final mintInfo =
+            mintData['parsed']?['info'] as Map<String, dynamic>? ?? {};
+
+        // Fast path: mint authority matches the SGT authority.
+        if (mintInfo['mintAuthority'] == mintAuthority) return true;
+
+        // Deep check: Token-2022 group/member extension on the mint account.
+        final extensions =
+            (mintInfo['extensions'] as List?) ?? [];
+        for (final ext in extensions) {
+          final name = ext['extension'] as String? ?? '';
+          final state = ext['state'] as Map<String, dynamic>? ?? {};
+
+          // groupMember — direct group field in the extension state.
+          if (name == 'groupMember' && state['group'] == groupAddress) {
+            return true;
+          }
+
+          // groupMemberPointer — pointer address matches the group address.
+          if (name == 'groupMemberPointer' &&
+              state['memberAddress'] == groupAddress) {
+            return true;
+          }
+        }
+      } catch (_) {}
+    }
+    return false;
   }
 
   /// Returns the parsed account info for [address], or `null` if the account
