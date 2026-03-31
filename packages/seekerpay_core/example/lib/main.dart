@@ -9,6 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:seekerpay_core/seekerpay_core.dart';
 
 void main() {
+  // Configure the app identity shown in the wallet signing dialog.
+  // Replace with your own app name and domain.
+  MwaClient.instance.configure(
+    identityName: 'seekerpay',
+    identityUri: Uri.parse('https://seekerpay.live'),
+  );
   runApp(const ProviderScope(child: _App()));
 }
 

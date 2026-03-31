@@ -1,3 +1,8 @@
+## 1.1.0
+
+* Bump seekerpay_core to ^1.1.0.
+* Update example to call `MwaClient.instance.configure()` at startup for customisable wallet identity (app name + domain).
+
 ## 1.0.9
 
 * Bump seekerpay_core dependency to ^1.0.9 (MWA identity fix: wallet now shows "Seeker Pay" with bitcoinvision.ai domain).

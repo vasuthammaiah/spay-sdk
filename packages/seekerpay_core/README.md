@@ -31,13 +31,19 @@ dependencies:
 
 ## Setup
 
-Wrap your app in `ProviderScope`:
+Wrap your app in `ProviderScope` and call `MwaClient.instance.configure()` **before** `runApp` to set the app name and domain shown to the user during wallet signing:
 
 ```dart
 void main() {
+  MwaClient.instance.configure(
+    identityName: 'My App',                        // shown in wallet signing dialog
+    identityUri: Uri.parse('https://myapp.com'),   // your app's domain
+  );
   runApp(const ProviderScope(child: MyApp()));
 }
 ```
+
+If `configure()` is not called the defaults are `seekerpay` / `seekerpay.live`.
 
 Optionally configure a [Helius](https://dashboard.helius.dev) API key for reliable RPC and activity history:
 
