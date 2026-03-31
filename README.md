@@ -13,13 +13,13 @@ The official open-source Flutter SDK for building Solana payment experiences on 
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [`seekerpay_core`](./packages/seekerpay_core) | 1.0.0 | Solana RPC, wallet adapter, SKR payments, activity history |
-| [`seekerpay_domains`](./packages/seekerpay_domains) | 1.0.0 | `.skr` and `.sol` domain resolution, Seeker Genesis verification |
-| [`seekerpay_qr`](./packages/seekerpay_qr) | 1.0.0 | Solana Pay-compatible QR code generation and decoding |
-| [`seekerpay_ui`](./packages/seekerpay_ui) | 1.0.0 | Dark theme, `PaymentPreviewSheet`, NFC pulse animation |
-| [`seekerpay_nfc`](./packages/seekerpay_nfc) | 1.0.0 | NFC tap-to-pay via NDEF payloads |
-| [`seekerpay_bluetooth`](./packages/seekerpay_bluetooth) | 1.0.0 | P2P payment handoff via Google Nearby Connections |
-| [`seekerpay_split`](./packages/seekerpay_split) | 1.0.0 | Group bill splitting with on-chain payment verification |
+| [`seekerpay_core`](./packages/seekerpay_core) | 1.1.1 | Solana RPC, wallet adapter, SKR payments, activity history |
+| [`seekerpay_domains`](./packages/seekerpay_domains) | 1.1.0 | `.skr` and `.sol` domain resolution, Seeker Genesis verification |
+| [`seekerpay_qr`](./packages/seekerpay_qr) | 1.1.0 | Solana Pay-compatible QR code generation and decoding |
+| [`seekerpay_ui`](./packages/seekerpay_ui) | 1.1.0 | Dark theme, `PaymentPreviewSheet`, NFC pulse animation |
+| [`seekerpay_nfc`](./packages/seekerpay_nfc) | 1.1.0 | NFC tap-to-pay via NDEF payloads |
+| [`seekerpay_bluetooth`](./packages/seekerpay_bluetooth) | 1.1.0 | P2P payment handoff via Google Nearby Connections |
+| [`seekerpay_split`](./packages/seekerpay_split) | 1.1.0 | Group bill splitting with on-chain payment verification |
 
 ---
 
@@ -47,19 +47,30 @@ dependencies:
     path: ./seekerpay-sdk/packages/seekerpay_split
 ```
 
-### 2. Bootstrap Riverpod
+### 2. Configure the wallet identity
 
-All stateful services use [Riverpod](https://riverpod.dev). Wrap your app:
+Call `MwaClient.instance.configure()` **before** `runApp` so the user sees your app name and domain in the wallet signing dialog:
 
 ```dart
+import 'package:seekerpay_core/seekerpay_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() {
+  MwaClient.instance.configure(
+    identityName: 'My App',                        // shown in wallet signing dialog
+    identityUri: Uri.parse('https://myapp.com'),   // your app's domain
+  );
   runApp(const ProviderScope(child: MyApp()));
 }
 ```
 
-### 3. Send your first SKR payment
+If `configure()` is not called the defaults are `seekerpay` / `seekerpay.live`.
+
+### 3. Bootstrap Riverpod
+
+All stateful services use [Riverpod](https://riverpod.dev). Wrap your app in `ProviderScope` (shown above).
+
+### 4. Send your first SKR payment
 
 ```dart
 import 'package:seekerpay_core/seekerpay_core.dart';
@@ -86,7 +97,7 @@ showModalBottomSheet(
 );
 ```
 
-### 4. Resolve a .skr domain
+### 5. Resolve a .skr domain
 
 ```dart
 import 'package:seekerpay_domains/seekerpay_domains.dart';
