@@ -30,6 +30,15 @@ class MwaTimeoutException extends MwaException {
 /// Handles [LocalAssociationScenario] lifecycle, authorization caching, and
 /// transaction signing. All operations are serialised via [_busy] to prevent
 /// concurrent MWA sessions.
+///
+/// Call [configure] once at app startup to set the app name and domain shown
+/// to the user during wallet authorization:
+/// ```dart
+/// MwaClient.instance.configure(
+///   identityName: 'My App',
+///   identityUri: Uri.parse('https://myapp.com'),
+/// );
+/// ```
 class MwaClient {
   MwaClient._();
 
@@ -38,6 +47,20 @@ class MwaClient {
 
   AuthorizationResult? _auth;
   bool _busy = false;
+
+  String _identityName = 'seekerpay';
+  Uri _identityUri = Uri.parse('https://seekerpay.live');
+
+  /// Configures the app identity shown to the user during wallet authorization.
+  ///
+  /// Call this once at app startup before any wallet operations.
+  void configure({
+    required String identityName,
+    required Uri identityUri,
+  }) {
+    _identityName = identityName;
+    _identityUri = identityUri;
+  }
 
   /// Whether the client currently holds a valid authorization token.
   bool get isAuthorized => _auth != null;
@@ -89,7 +112,6 @@ class MwaClient {
   /// Re-uses an existing auth token when available; falls back to a fresh
   /// [authorize] call otherwise.
   Future<String?> connectWalletAndGetAddress({
-    String identityName = 'seekerpay',
     String cluster = 'mainnet-beta',
   }) async {
     if (!Platform.isAndroid) return null;
@@ -101,20 +123,18 @@ class MwaClient {
       ctx = await _openClient();
       final client = ctx.client;
 
-      final identityUri = Uri.parse('https://seekerpay.live');
-
       AuthorizationResult? nextAuth;
       final currentAuth = _auth;
       if (currentAuth != null) {
         nextAuth = await client.reauthorize(
-          identityUri: identityUri,
-          identityName: identityName,
+          identityUri: _identityUri,
+          identityName: _identityName,
           authToken: currentAuth.authToken,
         );
       }
       nextAuth ??= await client.authorize(
-        identityUri: identityUri,
-        identityName: identityName,
+        identityUri: _identityUri,
+        identityName: _identityName,
         cluster: cluster,
       );
       if (nextAuth == null) return null;
@@ -139,7 +159,6 @@ class MwaClient {
   /// Requires Android. A fresh authorization is performed if no token is cached.
   Future<Uint8List?> signTransaction({
     required Uint8List transactionBytes,
-    String identityName = 'seekerpay',
     String cluster = 'mainnet-beta',
   }) async {
     if (!Platform.isAndroid || _busy) return null;
@@ -150,19 +169,17 @@ class MwaClient {
       ctx = await _openClient();
       final client = ctx.client;
 
-      final identityUri = Uri.parse('https://seekerpay.live');
-
       AuthorizationResult? auth = _auth;
       if (auth != null) {
         auth = await client.reauthorize(
-          identityUri: identityUri,
-          identityName: identityName,
+          identityUri: _identityUri,
+          identityName: _identityName,
           authToken: auth.authToken,
         );
       }
       auth ??= await client.authorize(
-        identityUri: identityUri,
-        identityName: identityName,
+        identityUri: _identityUri,
+        identityName: _identityName,
         cluster: cluster,
       );
       if (auth == null) return null;
