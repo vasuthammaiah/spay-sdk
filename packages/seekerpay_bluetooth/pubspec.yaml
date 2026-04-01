@@ -1,6 +1,6 @@
 name: seekerpay_bluetooth
 description: Bluetooth and Nearby Connections for SeekerPay.
-version: 1.1.0
+version: 1.1.1
 topics:
   - solana
   - payments

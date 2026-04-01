@@ -1,3 +1,9 @@
+## 1.1.1
+
+* Bump version to match seekerpay_core 1.1.1.
+* Improved MWA signing compatibility with external wallets (Jupiter on Samsung).
+* Better RPC error handling with exponential backoff and rate-limit guidance.
+
 ## 1.1.0
 
 * Bump seekerpay_core to ^1.1.0.
