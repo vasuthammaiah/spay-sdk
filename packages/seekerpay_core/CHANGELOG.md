@@ -1,3 +1,13 @@
+## 1.2.0
+
+* Feature updates and internal improvements for the 1.2.0 release.
+* Update internal dependencies to versioned hosted source.
+
+## 1.2.0
+
+* Feature updates and internal improvements for the 1.2.0 release.
+* Update internal dependencies to versioned hosted source.
+
 ## 1.1.1
 
 * Add `MwaClient.instance.configure(identityName:, identityUri:)` so SDK consumers can set the app name and domain shown during wallet signing. Defaults to `seekerpay` / `seekerpay.live`.

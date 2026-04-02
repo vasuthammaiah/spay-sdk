@@ -1,3 +1,8 @@
+## 1.2.0
+
+* Feature updates and internal improvements for the 1.2.0 release.
+* Update internal dependencies to versioned hosted source.
+
 ## 1.1.1
 
 * Bump version to match seekerpay_core 1.1.1.

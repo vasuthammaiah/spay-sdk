@@ -23,8 +23,7 @@ The foundation of the SeekerPay SDK. Provides Solana RPC communication, SKR toke
 
 ```yaml
 dependencies:
-  seekerpay_core:
-    path: ../packages/seekerpay_core  # adjust path as needed
+  seekerpay_core: ^1.2.0
 ```
 
 ---
