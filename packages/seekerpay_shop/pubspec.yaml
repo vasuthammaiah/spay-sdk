@@ -1,0 +1,44 @@
+name: seekerpay_shop
+description: Product lookup, catalog, and shop utilities for SeekerPay.
+version: 1.0.0
+topics:
+  - solana
+  - payments
+  - shop
+  - pos
+  - web3
+homepage: https://github.com/vasuthammaiah/spay-sdk
+repository: https://github.com/vasuthammaiah/spay-sdk
+issue_tracker: https://github.com/vasuthammaiah/spay-sdk/issues
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.3.1
+  http: ^1.2.1
+  shared_preferences: ^2.2.3
+  mobile_scanner: ^5.2.3
+  google_mlkit_text_recognition: ^0.13.0
+  google_mlkit_barcode_scanning: ^0.12.0
+  camera: ^0.11.0
+  image: ^4.2.0
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
+  flutter_gemma: ^0.13.2
+  flutter_tesseract_ocr: ^0.4.11
+  permission_handler: ^11.0.0
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+  googleapis_auth: ^2.0.0
+
+# flutter:
+#   assets:
+#     - assets/tessdata/eng.traineddata
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

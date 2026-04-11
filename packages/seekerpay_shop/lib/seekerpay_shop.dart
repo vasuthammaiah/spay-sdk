@@ -1,0 +1,20 @@
+library seekerpay_shop;
+
+export 'src/product_model.dart';
+export 'src/product_lookup_service.dart';
+export 'src/product_catalog_service.dart';
+export 'src/product_providers.dart';
+export 'src/product_scan_state.dart';
+export 'src/product_scan_notifier.dart';
+export 'src/product_scan_sheet.dart';
+export 'src/order_model.dart';
+export 'src/order_notifier.dart';
+export 'src/order_cart_sheet.dart';
+export 'src/mrp_data.dart';
+export 'src/mrp_parser.dart';
+export 'src/mrp_scan_sheet.dart';
+export 'src/mrp_ai_reader.dart';
+export 'src/currency_converter.dart';
+export 'src/local_llm_service.dart';
+export 'src/shop_llm_settings.dart';
+export 'src/history_service.dart';
