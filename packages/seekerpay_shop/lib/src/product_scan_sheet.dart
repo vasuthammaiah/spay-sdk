@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
@@ -152,28 +151,48 @@ class _ProductScanSheetState extends ConsumerState<ProductScanSheet> {
   Widget _resultView() {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: const Text('PRODUCT FOUND'), backgroundColor: Colors.black),
-      body: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(_foundProduct!.name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(_foundProduct!.barcode, style: const TextStyle(color: Colors.white38, fontFamily: 'monospace')),
-        const SizedBox(height: 32),
-        Text('SET PRICE ($_currencyCode)', style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
-        TextField(
-          controller: _localPriceCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: const TextStyle(color: _kPrimary, fontSize: 32, fontWeight: FontWeight.bold),
-          onChanged: _onLocalPriceChanged,
-          decoration: InputDecoration(prefixText: '$_currencySymbol ', enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10))),
-        ),
-        if (_confirmedUsd != null && _currencyCode != 'USD') Padding(padding: const EdgeInsets.only(top: 8), child: Text('≈ \$${_confirmedUsd!.toStringAsFixed(2)} USD', style: const TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold))),
-        const Spacer(),
-        ElevatedButton(
-          onPressed: _confirmedUsd != null ? _onConfirm : null,
-          style: ElevatedButton.styleFrom(backgroundColor: _kPrimary, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 16)),
-          child: const Text('ADD TO CART', style: TextStyle(fontWeight: FontWeight.bold)),
-        )
-      ])),
+      appBar: AppBar(
+        title: const Text('PRODUCT FOUND'), 
+        backgroundColor: Colors.black,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _foundProduct = null)),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (_foundProduct!.imageUrl != null)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 24),
+                height: 160, width: 160,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(_foundProduct!.imageUrl!, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2_rounded, size: 48, color: Colors.black12)),
+                ),
+              ),
+            ),
+          Text(_foundProduct!.name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(_foundProduct!.barcode, style: const TextStyle(color: Colors.white38, fontFamily: 'monospace'), textAlign: TextAlign.center),
+          const SizedBox(height: 32),
+          Text('SET PRICE ($_currencyCode)', style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+          TextField(
+            controller: _localPriceCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: const TextStyle(color: _kPrimary, fontSize: 32, fontWeight: FontWeight.bold),
+            onChanged: _onLocalPriceChanged,
+            autofocus: true,
+            decoration: InputDecoration(prefixText: '$_currencySymbol ', enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10))),
+          ),
+          if (_confirmedUsd != null && _currencyCode != 'USD') Padding(padding: const EdgeInsets.only(top: 8), child: Text('≈ \$${_confirmedUsd!.toStringAsFixed(2)} USD', style: const TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold))),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            onPressed: _confirmedUsd != null ? _onConfirm : null,
+            style: ElevatedButton.styleFrom(backgroundColor: _kPrimary, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 16)),
+            child: const Text('ADD TO CART', style: TextStyle(fontWeight: FontWeight.bold)),
+          )
+        ]),
+      ),
     );
   }
 }
