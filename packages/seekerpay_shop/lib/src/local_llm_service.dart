@@ -182,13 +182,16 @@ class LocalLlmService {
 
     return '''
 You read product label OCR text. $context. The input contains multiple OCR passes ([Pass 1], [Pass 2], etc.). 
-Cross-reference ALL passes to find the correct information. If one pass is garbled, use the others.
+Cross-reference ALL passes to find the correct information. 
 
 RULES:
 1. structure: Return ONLY valid JSON. No markdown, no explanation.
-2. productName: Clean and recognizable. If text is 'Clean & Clear Morning Burst Face Wash with Cooling Menthol', return 'Clean & Clear Face Wash'.
-3. price: Look for '${country == "India" ? "MRP" : "Price"}' or symbols like '\\\$'. Information may be split across lines (e.g., 'MRP' on line 1, '310' on line 2). Combine them.
-4. expDate: Look for expiry dates. Fix common OCR errors (e.g., '09725' -> '09/25').
+2. productName: Extract a clean, recognizable product name from the text. Remove marketing fluff.
+3. price: Look for local currency labels. 
+   - If country is India, look for 'MRP', 'Rs', or '₹'. Return price number and currency 'INR'.
+   - If country is China, look for '¥' or 'RMB'. Return price number and currency 'CNY'.
+   - If symbols are found (\$, £, €, ¥, ₹), return the ISO code (USD, GBP, EUR, JPY, INR).
+4. expDate: Fix OCR errors (e.g., '09725' -> '09/25').
 5. If a field is not found, return null.
 
 $fieldsDesc

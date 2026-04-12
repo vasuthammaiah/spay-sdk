@@ -157,7 +157,7 @@ class OrderCartSheet extends ConsumerWidget {
                     onPressed: () => _openMrpScanner(context, ref),
                     icon: const Icon(Icons.document_scanner_rounded, size: 16),
                     label: const Text(
-                      'SCAN MRP',
+                      'SCAN LABEL',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
                     ),
                     style: OutlinedButton.styleFrom(
