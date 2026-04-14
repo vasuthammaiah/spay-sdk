@@ -14,19 +14,19 @@ class ProductLookupService {
 
     final k = barcodeLookupApiKey?.trim() ?? '';
     
-    print(' [Lookup] --- START PREMIUM LOOKUP: $barcode (Enabled: $enabled) ---');
+    print(' [Lookup] --- START LOOKUP: $barcode (Premium Enabled: $enabled) ---');
     
-    if (!enabled) {
-      print(' [Lookup] Premium lookup is DISABLED in settings.');
-      return null;
+    // 1. Try Premium BarcodeLookup if key is available
+    if (enabled && k.isNotEmpty) {
+      final product = await _fetchBarcodeLookup(cleaned, k);
+      if (product != null) return product;
+    } else {
+      print(' [Lookup] Premium BarcodeLookup skipped (Enabled: $enabled, Key present: ${k.isNotEmpty})');
     }
 
-    if (k.isEmpty) {
-      print(' [Lookup] ERROR: No API Key configured for BarcodeLookup.');
-      return null;
-    }
-
-    return await _fetchBarcodeLookup(cleaned, k);
+    // 2. Fallback to Open Food Facts (Free)
+    print(' [Lookup] Using fallback: Open Food Facts...');
+    return await _fetchOpenFoodFacts(cleaned);
   }
 
   Future<Product?> _fetchBarcodeLookup(String barcode, String key) async {
@@ -77,6 +77,39 @@ class ProductLookupService {
     } catch (e) { 
       print(' [Lookup] >>> EXCEPTION: $e'); 
       return null; 
+    }
+  }
+
+  Future<Product?> _fetchOpenFoodFacts(String barcode) async {
+    try {
+      final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode.json');
+      print(' [Lookup] >>> EXECUTING FALLBACK CALL: GET $uri');
+      
+      final response = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      if (json['status'] != 1) {
+        print(' [Lookup] >>> Open Food Facts: Product not found.');
+        return null;
+      }
+
+      final item = json['product'] as Map<String, dynamic>;
+      final name = (item['product_name'] as String? ?? '').trim();
+      final brand = (item['brands'] as String? ?? '').trim();
+      final imgUrl = item['image_url'] as String?;
+
+      print(' [Lookup] >>> SUCCESS (Fallback): Found $name');
+      return Product(
+        barcode: barcode,
+        name: name,
+        brand: brand,
+        imageUrl: imgUrl,
+        category: item['categories'] as String?,
+      );
+    } catch (e) {
+      print(' [Lookup] >>> FALLBACK EXCEPTION: $e');
+      return null;
     }
   }
 }

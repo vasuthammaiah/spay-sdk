@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'product_model.dart';
 import 'product_lookup_service.dart';
@@ -19,7 +20,16 @@ final productLookupProvider =
   final local = await catalog.get(barcode);
   if (local != null) return local;
 
-  final lookup = ref.read(productLookupServiceProvider);
+  // Load API key and enabled status from SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+  final apiKey = prefs.getString('spay_barcode_lookup_key');
+  final enabled = prefs.getBool('spay_barcode_lookup_enabled') ?? false;
+
+  final lookup = ProductLookupService(
+    barcodeLookupApiKey: apiKey,
+    enabled: enabled,
+  );
+  
   return lookup.lookup(barcode);
 });
 

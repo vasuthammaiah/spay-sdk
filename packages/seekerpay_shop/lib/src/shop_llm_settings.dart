@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'local_llm_service.dart';
 import 'mrp_ai_reader.dart';
@@ -152,6 +153,14 @@ class _ClaudeVisionSettingsState extends State<ClaudeVisionSettings> {
         if (widget.showHeader) ...[ Padding(padding: const EdgeInsets.fromLTRB(16, 14, 12, 14), child: Row(children: [ Container(width: 36, height: 36, decoration: BoxDecoration(color: _configured ? _kPrimary.withValues(alpha:0.15) : Colors.white.withValues(alpha:0.06), borderRadius: BorderRadius.circular(8)), child: Icon(Icons.auto_awesome_rounded, color: _configured ? _kPrimary : Colors.white38, size: 20)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [ const Text('Paid API (Anthropic)', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)), Text(_configured ? 'Active — Claude Vision reads labels' : 'Claude Vision · API key required', style: const TextStyle(color: Colors.white38, fontSize: 11)) ])), Switch(value: _enabled && _configured, onChanged: _configured ? _toggleEnabled : null, activeThumbColor: _kPrimary, activeTrackColor: _kPrimary.withValues(alpha:0.4), inactiveTrackColor: Colors.white12) ])), const Divider(height: 1, color: Colors.white10) ],
         Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('When set, Claude Vision reads label images directly — far more accurate than on-device OCR.', style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.5)),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => launchUrl(Uri.parse('https://console.anthropic.com/')),
+            child: const Text(
+              'Get Anthropic API key at console.anthropic.com',
+              style: TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+            ),
+          ),
           const SizedBox(height: 14),
           if (_editing) ...[
             TextField(controller: _ctrl, obscureText: _obscure, autofocus: true, style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'), decoration: InputDecoration(hintText: 'sk-ant-api03-...', hintStyle: const TextStyle(color: Colors.white24, fontSize: 12), filled: true, fillColor: Colors.white.withValues(alpha:0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _kPrimary.withValues(alpha:0.6))), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12), suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded, color: Colors.white38, size: 18), onPressed: () => setState(() => _obscure = !_obscure)))),
