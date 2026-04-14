@@ -1,6 +1,6 @@
 name: seekerpay_shop
 description: Product lookup, catalog, and shop utilities for SeekerPay.
-version: 1.0.1
+version: 1.0.2
 topics:
   - solana
   - payments
@@ -42,7 +42,6 @@ dependencies:
 #     - assets/tessdata/eng.traineddata
 
 dev_dependencies:
-  url_launcher: ^6.3.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0

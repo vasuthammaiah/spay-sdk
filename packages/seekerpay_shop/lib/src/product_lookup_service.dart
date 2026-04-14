@@ -2,12 +2,25 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'product_model.dart';
 
+/// A service for looking up product information by barcode.
+/// 
+/// It first attempts a premium lookup using the Barcode Lookup API if a key is provided.
+/// If that fails or is unavailable, it falls back to the free Open Food Facts API.
 class ProductLookupService {
+  /// Optional API key for Barcode Lookup (premium).
   final String? barcodeLookupApiKey;
+  
+  /// Whether barcode lookup is enabled globally.
   final bool enabled;
   
   const ProductLookupService({this.barcodeLookupApiKey, this.enabled = true});
 
+  /// Looks up a product by its barcode string.
+  /// 
+  /// Logic:
+  /// 1. Cleans the input.
+  /// 2. Checks if premium lookup (Barcode Lookup API) is enabled and has a key.
+  /// 3. If premium fails or is skipped, attempts fallback to Open Food Facts.
   Future<Product?> lookup(String barcode) async {
     final cleaned = barcode.trim();
     if (cleaned.isEmpty) return null;
@@ -25,10 +38,13 @@ class ProductLookupService {
     }
 
     // 2. Fallback to Open Food Facts (Free)
+    // Open Food Facts is a community-driven database that provides free API access
+    // for product information, including ingredients, brands, and categories.
     print(' [Lookup] Using fallback: Open Food Facts...');
     return await _fetchOpenFoodFacts(cleaned);
   }
 
+  /// Internal method to fetch from Barcode Lookup API.
   Future<Product?> _fetchBarcodeLookup(String barcode, String key) async {
     try {
       final uri = Uri.parse('https://api.barcodelookup.com/v3/products?barcode=$barcode&formatted=y&key=$key');
@@ -80,6 +96,7 @@ class ProductLookupService {
     }
   }
 
+  /// Internal method to fetch from Open Food Facts API as a fallback.
   Future<Product?> _fetchOpenFoodFacts(String barcode) async {
     try {
       final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode.json');

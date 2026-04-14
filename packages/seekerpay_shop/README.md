@@ -5,6 +5,7 @@ Product lookup, catalog, and shop utilities for the SeekerPay SDK.
 ## Features
 
 - **Barcode scanning** — camera-based barcode scanning with Google ML Kit
+- **Product lookup** — checks local catalog first, then premium Barcode Lookup API (if key provided), and finally falls back to free Open Food Facts API
 - **MRP label scanning** — OCR-powered MRP/price label detection with on-device AI (Gemma 3 1B) or cloud AI (Claude Vision)
 - **Product catalog** — product model, lookup service, and Riverpod providers
 - **Order cart** — order model, cart management, and cart sheet UI
@@ -16,7 +17,7 @@ Product lookup, catalog, and shop utilities for the SeekerPay SDK.
 
 ```yaml
 dependencies:
-  seekerpay_shop: ^1.0.0
+  seekerpay_shop: ^1.0.2
 ```
 
 ## Usage

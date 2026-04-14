@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- Added fallback for barcode lookup via Open Food Facts (free)
+- Added documentation comments to `ProductLookupService`
+
 ## 1.0.1
 
 - Remove unused imports, fields, and local variables
