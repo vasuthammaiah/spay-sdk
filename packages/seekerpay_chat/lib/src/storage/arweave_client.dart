@@ -29,11 +29,13 @@ class ArweaveMessage {
 /// This gives near-instant message delivery (~seconds instead of minutes/hours).
 ///
 /// ### Content fetch
-/// `GET https://arweave.net/<txId>` — content is served immediately from the
-/// Irys gateway cache even before the tx is mined into an Arweave block.
+/// Tries the Irys gateway first (`https://gateway.irys.xyz/<txId>`) since it
+/// serves content immediately after upload. Falls back to `https://arweave.net/<txId>`
+/// once the bundle is mined (may take 10–60+ minutes after upload).
 class ArweaveClient {
   static const _graphqlUrl = 'https://node2.irys.xyz/graphql';
-  static const _gatewayUrl = 'https://arweave.net';
+  static const _irysGatewayUrl = 'https://gateway.irys.xyz';
+  static const _arweaveGatewayUrl = 'https://arweave.net';
   static const _appName = 'SKR-Chat';
 
   /// Queries Arweave for messages addressed to [toHash] (a hashed wallet
@@ -169,18 +171,31 @@ class ArweaveClient {
 
   /// Fetches the raw bytes of an Arweave transaction by [txId].
   ///
-  /// Content is served from the Irys / Arweave gateway cache immediately after
-  /// upload — no need to wait for on-chain mining.
+  /// Tries the Irys gateway first (immediate availability after upload), then
+  /// falls back to arweave.net (available only after the bundle is mined).
   Future<Uint8List> fetchContent(String txId) async {
-    final response = await http
-        .get(Uri.parse('$_gatewayUrl/$txId'))
-        .timeout(const Duration(seconds: 15));
+    final urls = [
+      '$_irysGatewayUrl/$txId',
+      '$_arweaveGatewayUrl/$txId',
+    ];
 
-    if (response.statusCode == 200) {
-      return response.bodyBytes;
+    Object? lastError;
+    for (final url in urls) {
+      try {
+        final response = await http
+            .get(Uri.parse(url))
+            .timeout(const Duration(seconds: 15));
+        if (response.statusCode == 200) {
+          return response.bodyBytes;
+        }
+        lastError = ArweaveQueryException(
+            'Content fetch $url → ${response.statusCode}');
+      } catch (e) {
+        lastError = e;
+      }
     }
     throw ArweaveQueryException(
-        'Content fetch failed for $txId: ${response.statusCode}');
+        'Content fetch failed for $txId: $lastError');
   }
 }
 

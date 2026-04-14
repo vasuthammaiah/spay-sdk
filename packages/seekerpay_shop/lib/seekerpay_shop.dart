@@ -18,3 +18,6 @@ export 'src/currency_converter.dart';
 export 'src/local_llm_service.dart';
 export 'src/shop_llm_settings.dart';
 export 'src/history_service.dart';
+export 'src/storage/arweave_order_service.dart';
+export 'src/storage/arweave_order_client.dart';
+export 'src/storage/irys_client.dart' show IrysTag;

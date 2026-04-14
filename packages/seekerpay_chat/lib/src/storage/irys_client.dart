@@ -73,7 +73,7 @@ class IrysClient {
     final priv = await kp.extractPrivateKeyBytes();
     await prefs.setString(_prefSignPriv, base64.encode(priv));
     await prefs.setString(_prefSignPub, base64.encode(pub.bytes));
-    return IrysClient._(kp as SimpleKeyPair, Uint8List.fromList(pub.bytes));
+    return IrysClient._(kp, Uint8List.fromList(pub.bytes));
   }
 
   // ---------------------------------------------------------------------------
@@ -123,10 +123,19 @@ class IrysClient {
         return txId;
       }
 
-      // 4xx = client/format error — don't try other nodes, it will fail there too.
+      // 429 (rate limit): try next node.
+      if (response.statusCode == 429) {
+        lastError = IrysUploadException(
+          'Irys rate limited at $url (429): ${response.body}',
+          response.statusCode,
+        );
+        continue;
+      }
+
+      // Other 4xx = client/format error — stop, other nodes will reject too.
       if (response.statusCode >= 400 && response.statusCode < 500) {
         throw IrysUploadException(
-          'Irys rejected upload (${response.statusCode}): ${response.body}',
+          'Irys rejected upload at $url (${response.statusCode}): ${response.body}',
           response.statusCode,
         );
       }

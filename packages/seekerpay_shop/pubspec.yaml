@@ -20,6 +20,8 @@ dependencies:
   flutter_riverpod: ^3.3.1
   http: ^1.2.1
   shared_preferences: ^2.2.3
+  crypto: ^3.0.3
+  cryptography: ^2.7.0
   mobile_scanner: ^5.2.3
   google_mlkit_text_recognition: ^0.13.0
   google_mlkit_barcode_scanning: ^0.12.0
