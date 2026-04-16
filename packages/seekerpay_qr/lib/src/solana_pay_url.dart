@@ -18,14 +18,32 @@ class SolanaPayUrl {
   final String? message;
   SolanaPayUrl({required this.recipient, this.amount, this.splToken, this.label, this.message});
   /// Encodes this object as a `solana:` URI string suitable for embedding in a QR code.
+  ///
+  /// Uses RFC 3986 percent-encoding (spaces → `%20`) rather than
+  /// Dart's `Uri.queryParameters` form-encoding (spaces → `+`), which
+  /// some Solana Pay parsers do not handle correctly.
   String encode() {
-    final uri = Uri(scheme: 'solana', path: recipient, queryParameters: {
-      if (amount != null) 'amount': (amount!.toDouble() / 1000000).toString(),
-      if (splToken != null) 'spl-token': splToken,
-      if (label != null) 'label': label,
-      if (message != null) 'message': message,
-    });
-    return uri.toString();
+    final buffer = StringBuffer('solana:');
+    buffer.write(recipient); // Base58 — no encoding needed (alphanumeric only)
+
+    final params = <String>[];
+    if (amount != null) {
+      final decimal = amount!.toDouble() / 1000000;
+      // Avoid trailing ".0" for whole numbers (e.g. 1.0 → "1")
+      final amountStr = decimal == decimal.truncateToDouble()
+          ? decimal.toInt().toString()
+          : decimal.toString();
+      params.add('amount=$amountStr');
+    }
+    if (splToken != null) params.add('spl-token=${Uri.encodeComponent(splToken!)}');
+    if (label != null)    params.add('label=${Uri.encodeComponent(label!)}');
+    if (message != null)  params.add('message=${Uri.encodeComponent(message!)}');
+
+    if (params.isNotEmpty) {
+      buffer.write('?');
+      buffer.write(params.join('&'));
+    }
+    return buffer.toString();
   }
   /// Parses a `solana:` URI string into a [SolanaPayUrl].
   ///
