@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'order_model.dart';
 import 'product_model.dart';
+import 'product_catalog_service.dart';
 import 'storage/arweave_order_service.dart';
 
 class LocalHistoryService {
@@ -86,6 +87,7 @@ class HistoryState {
 
 class HistoryNotifier extends Notifier<HistoryState> {
   final _localService = LocalHistoryService();
+  final _catalogService = ProductCatalogService();
 
   ArweaveOrderService? _arweave;
   String? _arweaveWalletAddress;
@@ -212,6 +214,34 @@ class HistoryNotifier extends Notifier<HistoryState> {
         state = state.copyWith(syncedOrderIds: syncedAfter, syncSummary: summary);
       }
 
+      // --- Product catalog sync (pull only; uploads happen per-save) ---
+      try {
+        debugPrint('[SKR-Sync] product sync: pulling catalog from Arweave…');
+        final productResult = await arweave.syncProducts(
+          walletAddress: walletAddress,
+          localProducts: List.unmodifiable(state.scannedProducts),
+          onProgress: (s) => state = state.copyWith(syncStatus: s),
+        );
+        if (productResult.pulled.isNotEmpty) {
+          debugPrint('[SKR-Sync] product sync: merging ${productResult.pulled.length} products');
+          final nextProducts = List<Product>.from(state.scannedProducts);
+          for (final p in productResult.pulled) {
+            final idx = nextProducts.indexWhere((e) => e.barcode == p.barcode);
+            if (idx >= 0) {
+              nextProducts[idx] = p;
+            } else {
+              nextProducts.add(p);
+            }
+            await _catalogService.save(p);
+          }
+          state = state.copyWith(scannedProducts: nextProducts);
+          await _localService.saveHistory(state.toJson());
+        }
+        debugPrint('[SKR-Sync] product sync done — ${productResult.pulled.length} pulled');
+      } catch (e) {
+        debugPrint('[SKR-Sync] product sync error: $e');
+      }
+
       debugPrint('[SKR-Sync] ── DONE ─────────────────────────────────────');
       return result;
     } catch (e, st) {
@@ -235,6 +265,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
     final nextProducts = state.scannedProducts.where((p) => p.barcode != barcode).toList();
     state = state.copyWith(scannedProducts: nextProducts);
     await _localService.saveHistory(state.toJson());
+    await _catalogService.delete(barcode);
   }
 
   Future<void> updateProduct(Product product) async {
@@ -243,6 +274,12 @@ class HistoryNotifier extends Notifier<HistoryState> {
     if (i >= 0) { nextProducts[i] = product; } else { nextProducts.add(product); }
     state = state.copyWith(scannedProducts: nextProducts);
     await _localService.saveHistory(state.toJson());
+    // Keep ProductCatalogService in sync so scan lookup picks up ownerPriceUsd
+    await _catalogService.save(product);
+    // Backup to Arweave when merchant saves/updates a product
+    if (_arweaveWalletAddress != null && _arweaveWalletAddress!.isNotEmpty) {
+      _backupProductToArweave(product, _arweaveWalletAddress!);
+    }
   }
 
   Future<void> saveOrder(Order order, {String? walletAddress}) async {
@@ -253,6 +290,8 @@ class HistoryNotifier extends Notifier<HistoryState> {
     for (final item in order.items) {
       final i = nextProducts.indexWhere((p) => p.barcode == item.product.barcode);
       if (i >= 0) { nextProducts[i] = item.product; } else { nextProducts.add(item.product); }
+      // Keep ProductCatalogService in sync
+      await _catalogService.save(item.product);
     }
 
     state = state.copyWith(orders: nextOrders, scannedProducts: nextProducts);
@@ -276,6 +315,15 @@ class HistoryNotifier extends Notifier<HistoryState> {
         _loadSyncedIds().then((synced) => state = state.copyWith(syncedOrderIds: synced));
       }).catchError((Object e) {
         if (kDebugMode) debugPrint('[HistoryNotifier] Arweave backup failed for ${order.id}: $e');
+      });
+    });
+  }
+
+  void _backupProductToArweave(Product product, String walletAddress) {
+    _getArweave(walletAddress).then((arweave) {
+      if (arweave == null) return;
+      arweave.saveProduct(product, walletAddress).catchError((Object e) {
+        if (kDebugMode) debugPrint('[HistoryNotifier] Arweave product backup failed for ${product.barcode}: $e');
       });
     });
   }

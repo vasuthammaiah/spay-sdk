@@ -6,10 +6,11 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../order_model.dart';
+import '../product_model.dart';
 import 'arweave_order_client.dart';
 import 'irys_client.dart';
 
-/// Result of a background sync operation.
+/// Result of a background order sync operation.
 class ArweaveSyncResult {
   /// Orders uploaded to Arweave that were only in local storage.
   final int uploaded;
@@ -18,6 +19,19 @@ class ArweaveSyncResult {
   final List<Order> pulled;
 
   const ArweaveSyncResult({required this.uploaded, required this.pulled});
+
+  bool get hasChanges => uploaded > 0 || pulled.isNotEmpty;
+}
+
+/// Result of a product catalog sync operation.
+class ArweaveProductSyncResult {
+  /// Products uploaded to Arweave.
+  final int uploaded;
+
+  /// Products pulled from Arweave that were not in local catalog.
+  final List<Product> pulled;
+
+  const ArweaveProductSyncResult({required this.uploaded, required this.pulled});
 
   bool get hasChanges => uploaded > 0 || pulled.isNotEmpty;
 }
@@ -55,6 +69,9 @@ class ArweaveOrderService {
 
   /// SharedPreferences key storing a JSON list of order IDs already backed up.
   static const _prefSyncedIds = 'skr_shop_arweave_synced';
+
+  /// SharedPreferences key storing the set of product barcodes backed up.
+  static const _prefSyncedProducts = 'skr_shop_arweave_synced_products';
 
   static final _aesGcm = AesGcm.with256bits();
   static final _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
@@ -221,6 +238,92 @@ class ArweaveOrderService {
     debugPrint('[SKR-Arweave] markSynced: orderId=$orderId');
     final syncedIds = await _loadSyncedIds();
     await _markSynced(orderId, syncedIds);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Product catalog backup / restore / sync
+  // ---------------------------------------------------------------------------
+
+  /// Uploads [product] to Arweave tagged with [walletAddress].
+  /// Each save creates a new record — restoreProducts takes the latest per barcode.
+  Future<void> saveProduct(Product product, String walletAddress) async {
+    debugPrint('[SKR-Arweave] saveProduct: barcode=${product.barcode}  name=${product.name}');
+    final ownerHash = hashAddress(walletAddress);
+    final plaintext = utf8.encode(jsonEncode(product.copyWith(savedAt: DateTime.now()).toJson()));
+    final cipherBytes = await _encrypt(plaintext);
+    final tags = [
+      IrysTag('App-Name', _appName),
+      IrysTag('Protocol', _protocol),
+      IrysTag('Type', 'product_catalog'),
+      IrysTag('Owner-Hash', ownerHash),
+      IrysTag('Product-Barcode', product.barcode),
+    ];
+    final txId = await _irys.upload(cipherBytes, tags);
+    debugPrint('[SKR-Arweave] saveProduct: ✅ txId=$txId');
+  }
+
+  /// Fetches and decrypts all backed-up products for [walletAddress] from Arweave.
+  /// When multiple records exist for the same barcode, returns the one with the
+  /// most recent [Product.savedAt] (i.e. last merchant update wins).
+  Future<List<Product>> restoreProducts(String walletAddress) async {
+    final ownerHash = hashAddress(walletAddress);
+    debugPrint('[SKR-Arweave] restoreProducts: querying ownerHash=$ownerHash');
+    final records = await _arweave.queryProducts(ownerHash: ownerHash);
+    debugPrint('[SKR-Arweave] restoreProducts: found ${records.length} records');
+
+    final latestByBarcode = <String, Product>{};
+    for (final record in records) {
+      try {
+        final cipherBytes = await _arweave.fetchContent(record.txId);
+        final plainBytes = await _decrypt(cipherBytes);
+        final json = jsonDecode(utf8.decode(plainBytes)) as Map<String, dynamic>;
+        final product = Product.fromJson(json);
+        final barcode = product.barcode;
+        final existing = latestByBarcode[barcode];
+        if (existing == null ||
+            (product.savedAt ?? DateTime(0)).isAfter(existing.savedAt ?? DateTime(0))) {
+          latestByBarcode[barcode] = product;
+        }
+      } catch (e) {
+        debugPrint('[SKR-Arweave] restoreProducts: ❌ skipping txId=${record.txId}  error=$e');
+      }
+    }
+    debugPrint('[SKR-Arweave] restoreProducts: returning ${latestByBarcode.length} products');
+    return latestByBarcode.values.toList();
+  }
+
+  /// Pull-only sync: fetches products from Arweave that are not in [localProducts].
+  /// Upload is handled per-save via [saveProduct] (called from HistoryNotifier).
+  Future<ArweaveProductSyncResult> syncProducts({
+    required String walletAddress,
+    required List<Product> localProducts,
+    void Function(String status)? onProgress,
+  }) async {
+    final localBarcodes = {for (final p in localProducts) p.barcode};
+    debugPrint('[SKR-Arweave] syncProducts: localProducts=${localProducts.length}');
+
+    final pulled = <Product>[];
+    try {
+      onProgress?.call('Checking catalog...');
+      final remote = await restoreProducts(walletAddress);
+      debugPrint('[SKR-Arweave] syncProducts: remote=${remote.length}');
+      for (final product in remote) {
+        if (!localBarcodes.contains(product.barcode)) {
+          pulled.add(product);
+        } else {
+          // Merge: prefer Arweave version if it has ownerPriceUsd and local doesn't
+          final local = localProducts.firstWhere((p) => p.barcode == product.barcode);
+          if (product.ownerPriceUsd != null && local.ownerPriceUsd == null) {
+            pulled.add(product); // update local with owner price from Arweave
+          }
+        }
+      }
+      debugPrint('[SKR-Arweave] syncProducts: ${pulled.length} products to merge');
+    } catch (e) {
+      debugPrint('[SKR-Arweave] syncProducts: ❌ $e');
+    }
+
+    return ArweaveProductSyncResult(uploaded: 0, pulled: pulled);
   }
 
   // ---------------------------------------------------------------------------

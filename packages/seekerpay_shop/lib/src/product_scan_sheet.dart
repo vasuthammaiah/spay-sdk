@@ -122,9 +122,10 @@ class _ProductScanSheetState extends ConsumerState<ProductScanSheet> {
       final match = local.cast<Product?>().firstWhere((p) => p?.barcode == barcode, orElse: () => null);
       if (match != null) {
         _foundProduct = match;
-        _confirmedUsd = match.lastPriceUsd;
+        // Prefer merchant's set price over the last known market price
+        _confirmedUsd = match.ownerPriceUsd ?? match.lastPriceUsd;
         if (_confirmedUsd != null && _rateToUsd != null) {
-          _localPriceCtrl.text = (_confirmedUsd! * _rateToUsd!).toStringAsFixed(2);
+          _localPriceCtrl.text = (_confirmedUsd! / (_rateToUsd ?? 1.0)).toStringAsFixed(2);
         }
         setState(() => _processing = false);
         return;

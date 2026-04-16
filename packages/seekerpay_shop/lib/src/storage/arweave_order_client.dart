@@ -33,8 +33,16 @@ class ArweaveOrderClient {
   ];
 
   /// Queries Arweave for all order backups belonging to [ownerHash].
-  Future<List<ArweaveOrderRecord>> queryOrders({
+  Future<List<ArweaveOrderRecord>> queryOrders({required String ownerHash, int limit = 200}) =>
+      _query(ownerHash: ownerHash, type: 'order_backup', limit: limit);
+
+  /// Queries Arweave for all product catalog entries belonging to [ownerHash].
+  Future<List<ArweaveOrderRecord>> queryProducts({required String ownerHash, int limit = 500}) =>
+      _query(ownerHash: ownerHash, type: 'product_catalog', limit: limit);
+
+  Future<List<ArweaveOrderRecord>> _query({
     required String ownerHash,
+    required String type,
     int limit = 200,
   }) async {
     const query = r'''
@@ -55,14 +63,14 @@ class ArweaveOrderClient {
       'tags': [
         {'name': 'App-Name', 'values': [_appName]},
         {'name': 'Protocol', 'values': ['1']},
-        {'name': 'Type', 'values': ['order_backup']},
+        {'name': 'Type', 'values': [type]},
         {'name': 'Owner-Hash', 'values': [ownerHash]},
       ],
     };
 
     for (final url in _graphqlUrls) {
       for (int attempt = 1; attempt <= 2; attempt++) {
-        debugPrint('[SKR-Arweave/Client] queryOrders: POST $url (attempt $attempt) ownerHash=$ownerHash');
+        debugPrint('[SKR-Arweave/Client] query($type): POST $url (attempt $attempt)');
         try {
           final response = await http
               .post(
@@ -75,21 +83,20 @@ class ArweaveOrderClient {
           if (response.statusCode != 200) break;
 
           final body = jsonDecode(response.body) as Map<String, dynamic>;
-          
+
           if (body['errors'] != null) {
             final errors = body['errors'] as List;
             final msg = errors.isNotEmpty ? errors[0]['message'] : 'Unknown GraphQL error';
-            debugPrint('[SKR-Arweave/Client] queryOrders: ❌ GraphQL error from $url: $msg');
-            break; 
+            debugPrint('[SKR-Arweave/Client] query($type): ❌ GraphQL error from $url: $msg');
+            break;
           }
 
           final data = body['data']?['transactions'];
           if (data == null) break;
 
           final edges = (data['edges'] as List?) ?? [];
-          debugPrint('[SKR-Arweave/Client] queryOrders: ✅ found ${edges.length} edges from $url');
-
-          if (edges.isEmpty) break; 
+          debugPrint('[SKR-Arweave/Client] query($type): ✅ found ${edges.length} edges from $url');
+          if (edges.isEmpty) break;
 
           final records = <ArweaveOrderRecord>[];
           for (final edge in edges) {
@@ -100,14 +107,11 @@ class ArweaveOrderClient {
               for (final t in tagList)
                 (t['name'] as String): (t['value'] as String),
             };
-            records.add(ArweaveOrderRecord(
-              txId: txId,
-              tags: tags,
-            ));
+            records.add(ArweaveOrderRecord(txId: txId, tags: tags));
           }
           return records;
         } catch (e) {
-          debugPrint('[SKR-Arweave/Client] queryOrders: ❌ Exception from $url: $e');
+          debugPrint('[SKR-Arweave/Client] query($type): ❌ Exception from $url: $e');
           if (attempt == 2) break;
           await Future.delayed(const Duration(seconds: 2));
         }
