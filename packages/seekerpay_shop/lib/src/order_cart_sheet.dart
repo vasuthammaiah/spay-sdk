@@ -773,11 +773,13 @@ class _AddItemDialogState extends State<_AddItemDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Dialog(
       backgroundColor: const Color(0xFF111111),
+      insetPadding: EdgeInsets.fromLTRB(24, 40, 24, bottom + 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white10)),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -888,11 +890,13 @@ class _DiscountDialogState extends State<_DiscountDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Dialog(
       backgroundColor: const Color(0xFF111111),
+      insetPadding: EdgeInsets.fromLTRB(24, 40, 24, bottom + 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white10)),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -983,6 +987,7 @@ class _DiscountDialogState extends State<_DiscountDialog> {
     );
   }
 }
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _ToggleBtn extends StatelessWidget {
   final String label;
