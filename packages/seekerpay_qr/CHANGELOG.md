@@ -1,3 +1,10 @@
+## 1.2.1
+
+* Fix `SolanaPayUrl.encode()` to use RFC 3986 percent-encoding (`%20`) instead of
+  Dart's `Uri.queryParameters` form-encoding (`+` for spaces), which caused QR codes
+  to be unrecognised by Phantom, Solflare, and other external Solana wallets.
+* Strip trailing `.0` from whole-number amounts in the encoded URL (e.g. `1` not `1.0`).
+
 ## 1.2.0
 
 * Feature updates and internal improvements for the 1.2.0 release.
