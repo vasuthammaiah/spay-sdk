@@ -82,6 +82,11 @@ class OrderNotifier extends Notifier<Order> {
     _saveToDisk();
   }
 
+  void setDiscount(double usd) {
+    state = state.copyWith(discountUsd: usd.clamp(0.0, state.subtotalUsd));
+    _saveToDisk();
+  }
+
   void addSignature(String signature) {
     state = state.copyWith(signature: signature);
     _saveToDisk();

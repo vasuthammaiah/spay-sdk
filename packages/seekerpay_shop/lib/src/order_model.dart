@@ -37,21 +37,28 @@ class Order {
   final DateTime timestamp;
   final List<OrderItem> items;
   final String? signature;
+  final double discountUsd;
 
   const Order({
     required this.id,
     required this.timestamp,
     this.items = const [],
     this.signature,
+    this.discountUsd = 0.0,
   });
 
-  double get totalUsd =>
+  double get subtotalUsd =>
       items.fold(0.0, (sum, item) => sum + item.totalUsd);
+
+  double get totalUsd =>
+      (subtotalUsd - discountUsd).clamp(0.0, double.infinity);
 
   int get totalItems =>
       items.fold(0, (sum, item) => sum + item.quantity);
 
   bool get isEmpty => items.isEmpty;
+
+  bool get hasDiscount => discountUsd > 0;
 
   /// Convert total to SKR base units (6 decimals).
   /// [skrPerUsd] — current USD price of 1 SKR (e.g. 0.02026).
@@ -61,12 +68,13 @@ class Order {
     return BigInt.from((skrAmount * 1000000).round());
   }
 
-  Order copyWith({String? id, DateTime? timestamp, List<OrderItem>? items, String? signature}) =>
+  Order copyWith({String? id, DateTime? timestamp, List<OrderItem>? items, String? signature, double? discountUsd}) =>
       Order(
         id: id ?? this.id,
         timestamp: timestamp ?? this.timestamp,
         items: items ?? this.items,
         signature: signature ?? this.signature,
+        discountUsd: discountUsd ?? this.discountUsd,
       );
 
   Map<String, dynamic> toJson() => {
@@ -74,6 +82,7 @@ class Order {
         'timestamp': timestamp.toIso8601String(),
         'items': items.map((i) => i.toJson()).toList(),
         'signature': signature,
+        if (discountUsd > 0) 'discountUsd': discountUsd,
       };
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
@@ -83,5 +92,6 @@ class Order {
             .map((i) => OrderItem.fromJson(i as Map<String, dynamic>))
             .toList(),
         signature: json['signature'] as String?,
+        discountUsd: (json['discountUsd'] as num?)?.toDouble() ?? 0.0,
       );
 }

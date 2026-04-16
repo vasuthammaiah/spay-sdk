@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'order_model.dart';
 import 'order_notifier.dart';
+import 'product_model.dart';
 import 'product_scan_notifier.dart';
 import 'product_scan_sheet.dart';
 import 'mrp_scan_sheet.dart';
@@ -176,6 +177,28 @@ class OrderCartSheet extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          // Manual item entry
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showAddItemDialog(context, ref),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text(
+                  'ADD ITEM MANUALLY',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white38,
+                  side: const BorderSide(color: Colors.white12),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
 
           // Items list
@@ -204,12 +227,28 @@ class OrderCartSheet extends ConsumerWidget {
                 Navigator.of(context).pop();
                 onPay(order.totalUsd, skrBaseUnits);
               },
+              onDiscount: (usd) => notifier.setDiscount(usd),
             ),
 
           SizedBox(height: MediaQuery.of(context).padding.bottom + 12),
         ],
       ),
     );
+  }
+
+  Future<void> _showAddItemDialog(BuildContext context, WidgetRef ref) async {
+    final result = await showDialog<_ManualItem>(
+      context: context,
+      builder: (_) => const _AddItemDialog(),
+    );
+    if (result != null) {
+      final product = Product(
+        barcode: 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
+        name: result.name,
+        brand: '',
+      );
+      ref.read(orderNotifierProvider.notifier).addItem(product, result.priceUsd);
+    }
   }
 
   Future<bool> _showConfigAlert(BuildContext context, String title, String msg, {IconData icon = Icons.warning_amber_rounded}) async {
@@ -521,13 +560,23 @@ class _BottomTotal extends StatelessWidget {
   final String? skrDisplay;
   final double skrPerUsd;
   final VoidCallback onPay;
+  final void Function(double discountUsd) onDiscount;
 
   const _BottomTotal({
     required this.order,
     required this.skrDisplay,
     required this.skrPerUsd,
     required this.onPay,
+    required this.onDiscount,
   });
+
+  Future<void> _showDiscountDialog(BuildContext context) async {
+    final result = await showDialog<double>(
+      context: context,
+      builder: (_) => _DiscountDialog(subtotalUsd: order.subtotalUsd, currentDiscountUsd: order.discountUsd),
+    );
+    if (result != null) onDiscount(result);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -539,6 +588,72 @@ class _BottomTotal extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Discount row
+          GestureDetector(
+            onTap: () => _showDiscountDialog(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: order.hasDiscount ? Colors.green.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: order.hasDiscount ? Colors.green.withValues(alpha: 0.4) : Colors.white12,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    order.hasDiscount ? Icons.local_offer_rounded : Icons.local_offer_outlined,
+                    size: 14,
+                    color: order.hasDiscount ? Colors.greenAccent : Colors.white38,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      order.hasDiscount ? 'DISCOUNT APPLIED' : 'ADD DISCOUNT',
+                      style: TextStyle(
+                        color: order.hasDiscount ? Colors.greenAccent : Colors.white38,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  if (order.hasDiscount) ...[
+                    Text(
+                      '-\$${order.discountUsd.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: order.hasDiscount ? Colors.greenAccent : Colors.white24,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Subtotal row (only shown when discount is active)
+          if (order.hasDiscount)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('SUBTOTAL', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                  Text('\$${order.subtotalUsd.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -616,6 +731,285 @@ class _BottomTotal extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Manual item data carrier ─────────────────────────────────────────────────
+
+class _ManualItem {
+  final String name;
+  final double priceUsd;
+  const _ManualItem(this.name, this.priceUsd);
+}
+
+// ─── Add item manually dialog ─────────────────────────────────────────────────
+
+class _AddItemDialog extends StatefulWidget {
+  const _AddItemDialog();
+
+  @override
+  State<_AddItemDialog> createState() => _AddItemDialogState();
+}
+
+class _AddItemDialogState extends State<_AddItemDialog> {
+  final _nameCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _priceCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0;
+    if (name.isEmpty || price <= 0) return;
+    Navigator.of(context).pop(_ManualItem(name, price));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF111111),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white10)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'ADD ITEM',
+              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _nameCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+              decoration: const InputDecoration(
+                labelText: 'ITEM NAME',
+                labelStyle: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _kPrimary, width: 1.5)),
+              ),
+              onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _priceCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: _kPrimary, fontSize: 20, fontWeight: FontWeight.w900),
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(
+                labelText: 'PRICE (USD)',
+                labelStyle: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+                prefixText: r'$ ',
+                prefixStyle: TextStyle(color: Colors.white38, fontSize: 15),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _kPrimary, width: 1.5)),
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 28),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kPrimary,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                    child: const Text('ADD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Discount dialog ──────────────────────────────────────────────────────────
+
+class _DiscountDialog extends StatefulWidget {
+  final double subtotalUsd;
+  final double currentDiscountUsd;
+
+  const _DiscountDialog({required this.subtotalUsd, required this.currentDiscountUsd});
+
+  @override
+  State<_DiscountDialog> createState() => _DiscountDialogState();
+}
+
+class _DiscountDialogState extends State<_DiscountDialog> {
+  late final TextEditingController _ctrl;
+  bool _isPct = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(
+      text: widget.currentDiscountUsd > 0 ? widget.currentDiscountUsd.toStringAsFixed(2) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  double get _computedDiscount {
+    final v = double.tryParse(_ctrl.text.trim()) ?? 0;
+    if (_isPct) return (widget.subtotalUsd * v / 100).clamp(0.0, widget.subtotalUsd);
+    return v.clamp(0.0, widget.subtotalUsd);
+  }
+
+  void _apply() => Navigator.of(context).pop(_computedDiscount);
+  void _remove() => Navigator.of(context).pop(0.0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF111111),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white10)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'ADD DISCOUNT',
+                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ToggleBtn(label: r'$', active: !_isPct, onTap: () { setState(() { _isPct = false; _ctrl.clear(); }); }),
+                      _ToggleBtn(label: '%',   active: _isPct,  onTap: () { setState(() { _isPct = true;  _ctrl.clear(); }); }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.greenAccent, fontSize: 28, fontWeight: FontWeight.w900),
+              textAlign: TextAlign.center,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: _isPct ? '0 %' : '0.00',
+                hintStyle: const TextStyle(color: Colors.white12, fontWeight: FontWeight.w900),
+                suffixText: _isPct ? '%' : 'USD',
+                suffixStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
+                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.greenAccent, width: 1.5)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_computedDiscount > 0)
+              Text(
+                'Discount: -\$${_computedDiscount.toStringAsFixed(2)}  →  Total: \$${(widget.subtotalUsd - _computedDiscount).toStringAsFixed(2)}',
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                if (widget.currentDiscountUsd > 0)
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _remove,
+                      child: const Text('REMOVE', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                    ),
+                  ),
+                if (widget.currentDiscountUsd > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _computedDiscount > 0 ? _apply : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.greenAccent,
+                      foregroundColor: Colors.black,
+                      disabledBackgroundColor: Colors.white10,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                    child: const Text('APPLY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ToggleBtn extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _ToggleBtn({required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? Colors.greenAccent.withValues(alpha: 0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: active ? Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)) : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? Colors.greenAccent : Colors.white38,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
       ),
     );
   }
