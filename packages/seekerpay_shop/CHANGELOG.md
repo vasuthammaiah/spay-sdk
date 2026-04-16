@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.4
+
+- **Product Catalog Arweave Sync**:
+  - `ArweaveOrderService.saveProduct()` — encrypts and uploads products to Arweave with `Type=product_catalog` tag.
+  - `ArweaveOrderService.restoreProducts()` — decrypts all catalog records; deduplicates by barcode keeping the latest `savedAt` version.
+  - `ArweaveOrderService.syncProducts()` — pull-only sync; merges remote products missing locally and fills in `ownerPriceUsd` from Arweave where local has none.
+  - `ArweaveOrderClient.queryProducts()` — new GraphQL query targeting `Type=product_catalog` (refactored shared `_query()` helper).
+  - `ArweaveProductSyncResult` model for product sync results.
+- **`ownerPriceUsd` priority in scanning**:
+  - `ProductScanSheet` now pre-fills price with `ownerPriceUsd` (merchant's set price) instead of `lastPriceUsd` when a local catalog match is found.
+- **`HistoryNotifier` improvements**:
+  - `updateProduct()` / `saveOrder()` / `deleteProduct()` now keep `ProductCatalogService` (SharedPreferences) in sync so barcode lookup always sees the latest `ownerPriceUsd`.
+  - `updateProduct()` triggers an async Arweave backup immediately after save.
+  - `startBackgroundSync()` now pulls the product catalog from Arweave alongside orders.
+- **Order cart**:
+  - Manual item entry (`ADD ITEM MANUALLY` button) — type name + price without scanning.
+  - Order-level discount — flat `$` or `%` discount with live preview; stored as `discountUsd` on `Order`; backward-compatible JSON.
+  - `setDiscount()` added to `OrderNotifier`.
+  - Dialog overflow fixed for keyboard-up state (`insetPadding` + `SingleChildScrollView`).
+- **Payment tolerance**:
+  - Overpayment auto-accepts; underpayment shows orange `PARTIAL PAYMENT` banner with remaining SKR; QR updates to remaining amount.
+
 ## 1.0.3
 
 - **Arweave/Irys Sync Fixes**:

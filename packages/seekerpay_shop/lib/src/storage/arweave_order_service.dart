@@ -70,9 +70,6 @@ class ArweaveOrderService {
   /// SharedPreferences key storing a JSON list of order IDs already backed up.
   static const _prefSyncedIds = 'skr_shop_arweave_synced';
 
-  /// SharedPreferences key storing the set of product barcodes backed up.
-  static const _prefSyncedProducts = 'skr_shop_arweave_synced_products';
-
   static final _aesGcm = AesGcm.with256bits();
   static final _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 
