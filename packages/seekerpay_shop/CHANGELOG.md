@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.5
+
+- **UI**: Shop config tiles (`ShopLlmSettings`, `ClaudeVisionSettings`) — replaced yellow accent with white, transparent card backgrounds, consistent input fills and switch colors for dark purple shop mode theme.
+
 ## 1.0.4
 
 - **Product Catalog Arweave Sync**:
