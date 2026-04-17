@@ -1,3 +1,8 @@
+## 1.2.1
+
+- `AppColors.background` changed from black `#000000` to midnight purple `#110022` for unified dark theme.
+- Bottom nav bar background updated to use `AppColors.background`.
+
 ## 1.2.0
 
 * Feature updates and internal improvements for the 1.2.0 release.
